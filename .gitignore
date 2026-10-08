@@ -1,0 +1,9 @@
+node_modules/
+.env
+npm-debug.log
+uploads/
+private_uploads/
+
+# Session WhatsApp Web (whatsapp-web.js)
+.wwebjs_auth/
+.wwebjs_cache/
