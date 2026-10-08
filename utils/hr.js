@@ -12,7 +12,7 @@ const DOCUMENT_TYPES = ['CIN', 'RESIDENCE', 'CV', 'CONTRAT'];
 const LEAVE_TYPES = ['ANNUEL', 'MALADIE', 'MATERNITE_PATERNITE', 'SANS_SOLDE'];
 const LEAVE_STATUSES = ['EN_ATTENTE', 'APPROUVE', 'REFUSE', 'ANNULE'];
 const PAYROLL_STATUSES = ['BROUILLON', 'VALIDE', 'PAYE'];
-const DEPARTMENTS = ['Administration', 'Réception', 'Restauration', 'Casino', 'Maintenance', 'Hébergement', 'Sécurité'];
+const DEPARTMENTS = ['Administration', 'Réception', 'Restauration', 'Maintenance', 'Hébergement', 'Sécurité'];
 
 // Fragment SQL réutilisable : employés encore dans l'effectif.
 const IN_WORKFORCE_SQL = (alias = '') => `${alias ? `${alias}.` : ''}status NOT IN (${DEPARTURE_STATUSES.map((s) => `'${s}'`).join(', ')})`;

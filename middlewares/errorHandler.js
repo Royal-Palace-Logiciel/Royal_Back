@@ -23,16 +23,16 @@ function errorHandler(err, req, res, next) {
     return fail(res, 409, 'Suppression impossible : la ressource est référencée ailleurs.', err.sqlMessage);
   }
   if (err && err.code === 'ER_BAD_FIELD_ERROR') {
-    return fail(res, 500, 'Schéma casino incomplet : exécutez la migration des tables de jeu sur la base en ligne.', err.sqlMessage);
+    return fail(res, 500, 'Schéma de base incomplet : exécutez les migrations sur la base en ligne.', err.sqlMessage);
   }
   if (err && err.code === 'ER_NO_DEFAULT_FOR_FIELD') {
-    return fail(res, 400, 'Champ obligatoire manquant dans la base casino. Vérifiez la migration du schéma.', err.sqlMessage);
+    return fail(res, 400, 'Champ obligatoire manquant dans la base. Vérifiez la migration du schéma.', err.sqlMessage);
   }
   if (err && err.code === 'ER_DATA_TOO_LONG') {
-    return fail(res, 400, 'Une valeur est trop longue pour un champ de la table casino.', err.sqlMessage);
+    return fail(res, 400, 'Une valeur est trop longue pour un champ de la base.', err.sqlMessage);
   }
   if (err && err.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD') {
-    return fail(res, 400, 'Une valeur envoyée n’est pas compatible avec le schéma casino.', err.sqlMessage);
+    return fail(res, 400, 'Une valeur envoyée n’est pas compatible avec le schéma de la base.', err.sqlMessage);
   }
 
   console.error('[error]', err);

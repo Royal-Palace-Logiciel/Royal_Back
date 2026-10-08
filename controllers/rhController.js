@@ -69,7 +69,7 @@ async function createEmployee(req, res) {
   const body = normalized(req.body); assertEmployee(body); await ensureDuplicates(body);
   if (body.status === 'EN_CONGE') throw ApiError.badRequest('Le statut en congé est défini par une demande approuvée');
   if (DEPARTURE_STATUSES.includes(body.status)) throw ApiError.badRequest('Un nouvel employé ne peut pas être créé avec un statut de sortie');
-  const matricule = body.matricule || `HDA-${Date.now().toString().slice(-8)}`;
+  const matricule = body.matricule || `RP-${Date.now().toString().slice(-8)}`;
   const row = await model.employees.create(withContributions({ ...body, matricule, contract_type: body.contract_type || 'CDI', status: body.status || 'ACTIF', departure_reason: undefined, departure_date: undefined }));
   await require('../config/db').pool.query('INSERT INTO rh_leave_balances (employee_id, annual_accrued, annual_used) VALUES (?, 24, 0)', [row.id]);
   await audit(req, 'CREATE_HR_EMPLOYEE', 'rh_employees', row.id, { matricule: row.matricule });

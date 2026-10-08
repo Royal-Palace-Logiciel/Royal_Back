@@ -1,10 +1,7 @@
 // views/clientView.js
 function renderClient(client) {
   if (!client) return null;
-  return {
-    ...client,
-    is_casino_player: Boolean(client.is_casino_player),
-  };
+  return { ...client };
 }
 
 function renderClientWithAccount(client, account) {

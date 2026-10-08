@@ -13,8 +13,7 @@ class SeedStockLocation {
     return [
       { id: 1, nom: 'Hébergement' },
       { id: 2, nom: 'Restaurant' },
-      { id: 3, nom: 'Bar & Lounge' },
-      { id: 4, nom: 'Casino' }
+      { id: 3, nom: 'Bar & Lounge' }
     ];
   }
 

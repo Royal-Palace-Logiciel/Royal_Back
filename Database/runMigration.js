@@ -7,29 +7,6 @@ async function runMigration(sqlFilePath) {
   try {
     console.log('🚀 Running migration:', sqlFilePath);
 
-    // A schema dump may leave report names as base tables. Remove either
-    // object type before recreating the report views.
-    if (path.basename(sqlFilePath) === 'add_casino_report_views.sql') {
-      const objectNames = [
-        'v_casino_ecarts_caisse',
-        'v_casino_encours_credit',
-        'v_casino_produit_net_jour',
-      ];
-      for (const objectName of objectNames) {
-        const [[object]] = await pool.query(
-          `SELECT TABLE_TYPE AS object_type
-             FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
-          [objectName]
-        );
-        if (object?.object_type === 'VIEW') {
-          await pool.query(`DROP VIEW \`${objectName}\``);
-        } else if (object?.object_type === 'BASE TABLE') {
-          await pool.query(`DROP TABLE \`${objectName}\``);
-        }
-      }
-    }
-    
     const sql = fs.readFileSync(sqlFilePath, 'utf8');
     const statements = sql
       .split(';')

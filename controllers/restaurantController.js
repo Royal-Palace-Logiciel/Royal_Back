@@ -293,7 +293,7 @@ async function orderInvoiceHandler(req, res) {
             </tr>
           </tfoot>
         </table>
-        <div class="footer">Imprimé depuis HDA — Hotel de L'avenue</div>
+        <div class="footer">Imprimé depuis Royal Palace — Antsirabe</div>
       </div>
     </body>
   </html>`;
@@ -326,7 +326,7 @@ async function orderInvoicePdfHandler(req, res) {
   const right = doc.page.width - doc.page.margins.right;
   let y = 40;
 
-  doc.font('Helvetica-Bold').fontSize(14).text("Hotel de L'avenue", left, y);
+  doc.font('Helvetica-Bold').fontSize(14).text("Royal Palace", left, y);
   doc.fontSize(10).fillColor('#000').text(`Facture #${order.id}`, right - 150, y, { width: 150, align: 'right' });
   doc.fontSize(9).fillColor('#444').text(`${date}`, right - 150, y + 16, { width: 150, align: 'right' });
   y += 36;
@@ -405,7 +405,7 @@ async function orderInvoicePdfHandler(req, res) {
   doc.font('Helvetica-Bold').fontSize(12).text(Number(total).toFixed(2), totalsX + 8, y + 26, { width: 120, align: 'left' });
 
   y += 76;
-  doc.fontSize(9).fillColor('#666').text('Imprimé depuis le système HDA — Hotel de L\'avenue', left, y);
+  doc.fontSize(9).fillColor('#666').text('Imprimé depuis le système Royal Palace — Antsirabe', left, y);
 
   doc.end();
 }
