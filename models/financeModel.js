@@ -51,13 +51,13 @@ async function findFinancialTransactionsWithDetails(options = {}) {
 
 // --- Départements / modules suivis par le reporting financier -------------
 
-const DEPARTMENTS = ['hebergement', 'hotel', 'restaurant', 'bar', 'casino'];
+const DEPARTMENTS = ['hebergement', 'hotel', 'restaurant', 'bar', 'spa'];
 
 function normaliseModule(value) {
   const key = String(value || '').trim().toLowerCase();
   if (key.includes('restaurant')) return 'restaurant';
   if (key.includes('bar')) return 'bar';
-  if (key.includes('casino')) return 'casino';
+  if (key === 'spa' || key.includes('piscine')) return 'spa';
   if (key.includes('hotel') || key.includes('hôtel')) return 'hotel';
   if (key.includes('hebergement') || key.includes('hébergement')) return 'hebergement';
   return null;
@@ -141,7 +141,7 @@ async function financialSummary() {
     ['hotel', { module: 'hotel', entrees: 0, sorties: 0 }],
     ['restaurant', { module: 'restaurant', entrees: 0, sorties: 0 }],
     ['bar', { module: 'bar', entrees: 0, sorties: 0 }],
-    ['casino', { module: 'casino', entrees: 0, sorties: 0 }],
+    ['spa', { module: 'spa', entrees: 0, sorties: 0 }],
   ]);
   const add = (module, field, amount) => {
     const key = normaliseModule(module);
@@ -220,22 +220,6 @@ async function financialSummary() {
   );
   add('hotel', 'entrees', unlinkedHotelReservations[0]?.montant);
 
-  // Les opérations Casino sont synchronisées directement dans le grand livre
-  // financier avec des types ENTREE_CAISSE_CASINO ou SORTIE_CAISSE_CASINO.
-  const [casinoTransactions] = await pool.query(
-    `SELECT type_flux, COALESCE(SUM(montant), 0) AS montant
-     FROM financial_transactions
-     WHERE UPPER(module) = 'CASINO'
-     GROUP BY type_flux`
-  );
-  casinoTransactions.forEach((row) => {
-    if (String(row.type_flux || '').toUpperCase().startsWith('ENTREE')) {
-      add('casino', 'entrees', row.montant);
-    } else if (String(row.type_flux || '').toUpperCase().startsWith('SORTIE')) {
-      add('casino', 'sorties', row.montant);
-    }
-  });
-
   // Le bar possède sa propre table de commandes dans certaines installations.
   const [[barOrdersTable]] = await pool.query("SHOW TABLES LIKE 'bar_orders'");
   const [[barStockTable]] = await pool.query("SHOW TABLES LIKE 'bar_stock'");
@@ -265,6 +249,19 @@ async function financialSummary() {
     if (String(row.type_flux || '').toUpperCase().startsWith('ENTREE')) {
       add('bar', 'entrees', row.montant);
     }
+  });
+
+  // SPA (piscine) : chaque vente encaissée est inscrite au grand livre (SPA-VENTE-<id>).
+  const [spaTransactions] = await pool.query(
+    `SELECT type_flux, COALESCE(SUM(montant), 0) AS montant
+     FROM financial_transactions
+     WHERE UPPER(module) = 'SPA'
+     GROUP BY type_flux`
+  );
+  spaTransactions.forEach((row) => {
+    const flux = String(row.type_flux || '').toUpperCase();
+    if (flux.startsWith('ENTREE')) add('spa', 'entrees', row.montant);
+    else if (flux.startsWith('SORTIE')) add('spa', 'sorties', row.montant);
   });
 
   const [stockValues] = await pool.query(

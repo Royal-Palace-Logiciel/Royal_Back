@@ -66,7 +66,7 @@ test('payroll net amount subtracts CNAPS, OSTIE and IRSA', () => {
 
 test('employee creation rejects an unknown contract type before database access', async () => {
   await assert.rejects(
-    () => rhController.createEmployee({ body: { first_name: 'A', last_name: 'B', department: 'Casino', position: 'Croupier', joined_at: '2026-09-01', contract_type: 'Stage' } }, {}),
+    () => rhController.createEmployee({ body: { first_name: 'A', last_name: 'B', department: 'Restauration', position: 'Serveur', joined_at: '2026-09-01', contract_type: 'Stage' } }, {}),
     /Type de contrat invalide/
   );
 });

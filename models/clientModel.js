@@ -8,7 +8,7 @@ const Clients = createCrudModel({
   fields: [
     'code_client', 'nom', 'prenom', 'telephone', 'email', 'adresse',
     'date_naissance', 'type_piece', 'numero_piece', 'photo_url',
-    'is_casino_player', 'statut',
+    'statut',
   ],
   sortable: ['id', 'nom', 'prenom', 'code_client', 'statut', 'created_at'],
 });
@@ -27,7 +27,7 @@ const LoyaltyPoints = createCrudModel({
   sortable: ['id', 'client_id', 'created_at'],
 });
 
-// Fiche KYC (Know Your Customer) — conformité LBC/FT casino.
+// Fiche KYC (Know Your Customer) — conformité LBC/FT.
 // Exposé surtout via findKycByClientId / upsertKyc (relation 1-1 avec un client),
 // mais on garde aussi un modèle CRUD générique pour les besoins d'admin/listing.
 const ClientKyc = createCrudModel({
@@ -50,7 +50,7 @@ const ClientKyc = createCrudModel({
 const CLIENT_FIELDS = [
   'nom', 'prenom', 'telephone', 'email', 'adresse',
   'date_naissance', 'type_piece', 'numero_piece', 'photo_url',
-  'is_casino_player', 'statut',
+  'statut',
 ];
 
 function pickClientFields(data = {}) {

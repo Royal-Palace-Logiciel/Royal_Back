@@ -26,7 +26,7 @@ async function createOrLinkEmployeeFromUser(user) {
       return employees.findById(rows[0].id);
     }
   }
-  const matricule = `HDA-${Date.now().toString().slice(-8)}`;
+  const matricule = `RP-${Date.now().toString().slice(-8)}`;
   const row = await employees.create({
     user_id: user.id_admin,
     matricule,

@@ -60,7 +60,7 @@ const PORT = process.env.PORT || 4000;
 async function start() {
   try {
     await checkConnection();
-    const server = app.listen(PORT, () => console.log(`[server] API HDA démarrée sur http://localhost:${PORT}/api`));
+    const server = app.listen(PORT, () => console.log(`[server] API Royal Palace démarrée sur http://localhost:${PORT}/api`));
     // Pas de délai maximal pour recevoir le corps d'une requête : les pièces jointes RH
     // n'ont pas de limite de taille et peuvent prendre plus de 5 min (défaut Node) à envoyer.
     // Le délai de réception des en-têtes (headersTimeout) reste actif.

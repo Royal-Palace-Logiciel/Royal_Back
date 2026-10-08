@@ -1,7 +1,7 @@
 const { pool } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 
-const categories = ['Videur', 'Femme de ménage', 'Agents d’accueil', 'Bar', 'Restaurant', 'Poker'];
+const categories = ['Videur', 'Femme de ménage', 'Agents d’accueil', 'Bar', 'Restaurant'];
 const DEFAULT_SCHEDULE = '00:00 – 00:00';
 const SCHEDULE_PATTERN = /^(?:|OFF|(?:[01]\d|2[0-3]):[0-5]\d – (?:[01]\d|2[0-3]):[0-5]\d)$/;
 const INPUT_SCHEDULE_PATTERN = /^((?:[01]\d|2[0-3]):[0-5]\d)(?:\s*[–-]\s*((?:[01]\d|2[0-3]):[0-5]\d))?$/;

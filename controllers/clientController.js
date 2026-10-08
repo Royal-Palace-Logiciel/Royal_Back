@@ -16,7 +16,7 @@ const { getPagination, getSort, buildWhere } = require('../utils/queryHelpers');
 const NIVEAUX_RISQUE = ['FAIBLE', 'MOYEN', 'ELEVE'];
 
 const clientsCrud = createCrudController(Clients, {
-  filterable: ['statut', 'is_casino_player'],
+  filterable: ['statut'],
   view: renderClient,
 });
 
@@ -162,7 +162,7 @@ async function deleteClientHandler(req, res) {
 
   // Historique du client : toutes les tables dont la clé étrangère vers clients.id
   // bloque la suppression (NO ACTION / RESTRICT). La liste est lue dans le schéma de la
-  // base, pour qu'une table ajoutée plus tard (ex. casino_table_visits, oubliée dans
+  // base, pour qu'une table ajoutée plus tard (ex. une table d'historique oubliée dans
   // l'ancienne liste écrite à la main) ne fasse plus échouer la suppression.
   // client_kyc (CASCADE) et signatures (SET NULL) ne bloquent pas.
   const [blockingTables] = await pool.query(
@@ -190,7 +190,7 @@ async function deleteClientHandler(req, res) {
   } else {
     // Historique à conserver : le client est retiré des listes et des recherches
     // (deleted_at), sans changer son statut. Il reste lisible par son id, pour que
-    // ses anciennes factures, réservations, opérations de casino… affichent son nom.
+    // ses anciennes factures, réservations… affichent son nom.
     await pool.query('UPDATE clients SET deleted_at = NOW(), deleted_by = ? WHERE id = ?', [req.user?.id_admin || null, req.params.id]);
     return ok(res, {
       success: true,
@@ -207,7 +207,7 @@ async function deleteClientHandler(req, res) {
 async function listClients(req, res) {
   const { page, limit, offset } = getPagination(req.query);
   const orderBy = getSort(req.query, Clients.sortableCols, Clients.pk);
-  const { sql, values } = buildWhere(req.query, ['statut', 'is_casino_player']);
+  const { sql, values } = buildWhere(req.query, ['statut']);
   const whereSql = sql ? `${sql} AND deleted_at IS NULL` : 'WHERE deleted_at IS NULL';
   const [rows, total] = await Promise.all([
     Clients.findAll({ whereSql, whereValues: values, orderBy, limit, offset }),

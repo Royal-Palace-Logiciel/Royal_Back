@@ -3,7 +3,7 @@
 // Génère un modèle CRUD complet (findAll, findById, create, update, remove)
 // pour une table donnée, sans dupliquer le SQL à chaque fois.
 // Utilisé par toutes les tables "simples" (référentiels, tables de rattachement).
-// Les tables avec logique métier (casino, stock, finance, restaurant) ont
+// Les tables avec logique métier (stock, finance, restaurant) ont
 // leur propre modèle qui peut réutiliser cette factory en interne.
 
 const { pool } = require('../config/db');

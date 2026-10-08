@@ -3,9 +3,8 @@ const { findLatestSignature, findSignatureHistory, createSignature, deleteSignat
 const ApiError = require('../utils/ApiError');
 const { ok, created, noContent } = require('../utils/apiResponse');
 
-// Types de signature connus. Étendre cette liste au fur et à mesure des besoins,
-// par ex. 'casino_cash_operation' ou 'casino_credit' pour signer les recaves/crédits.
-const SIGNABLE_TYPES = ['client_kyc', 'casino_cash_operation', 'casino_credit'];
+// Types de signature connus. Étendre cette liste au fur et à mesure des besoins.
+const SIGNABLE_TYPES = ['client_kyc'];
 
 function assertValidType(type) {
   if (!SIGNABLE_TYPES.includes(type)) {
