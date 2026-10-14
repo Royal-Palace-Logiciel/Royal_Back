@@ -107,18 +107,148 @@ const productsCrud = {
     }
     return ok(res, product);
   },
+  getRecipe: async (req, res) => {
+    const product = await stock.Products.findById(req.params.id);
+    if (!product || product.source_module !== 'RESTAURANT') {
+      throw ApiError.notFound(`Produit restaurant #${req.params.id} introuvable`);
+    }
+    const [ingredients] = await pool.query(
+      `SELECT ri.ingredient_id, ri.quantite, p.nom AS ingredient_nom, p.unite
+       FROM recipes r
+       JOIN recipe_items ri ON ri.recipe_id = r.id
+       JOIN products p ON p.id = ri.ingredient_id
+       WHERE r.product_id = ?
+       ORDER BY r.id DESC, ri.id`,
+      [req.params.id]
+    );
+    return ok(res, ingredients);
+  },
+  saveRecipe: async (req, res) => {
+    const productId = Number(req.params.id);
+    const ingredients = req.body?.ingredients;
+    if (!Number.isInteger(productId) || productId <= 0 || !Array.isArray(ingredients)) {
+      throw ApiError.badRequest('Une liste d’ingrédients valide est requise');
+    }
+    const normalizedIngredients = ingredients.map((ingredient) => ({
+      ingredient_id: Number(ingredient.ingredient_id),
+      quantite: Number(ingredient.quantite),
+    }));
+    if (normalizedIngredients.some((ingredient) =>
+      !Number.isInteger(ingredient.ingredient_id) || ingredient.ingredient_id <= 0 ||
+      !Number.isFinite(ingredient.quantite) || ingredient.quantite <= 0
+    )) {
+      throw ApiError.badRequest('Chaque ingrédient doit avoir une quantité positive valide');
+    }
+    if (new Set(normalizedIngredients.map((ingredient) => ingredient.ingredient_id)).size !== normalizedIngredients.length) {
+      throw ApiError.badRequest('Un ingrédient ne peut apparaître qu’une seule fois dans la recette');
+    }
+
+    await withTransaction(async (connection) => {
+      const [products] = await connection.query(
+        "SELECT id FROM products WHERE id = ? AND source_module = 'RESTAURANT' FOR UPDATE",
+        [productId]
+      );
+      if (!products.length) {
+        throw ApiError.notFound(`Produit restaurant #${productId} introuvable`);
+      }
+
+      if (normalizedIngredients.length) {
+        const ids = normalizedIngredients.map((ingredient) => ingredient.ingredient_id);
+        const [availableIngredients] = await connection.query(
+          `SELECT id FROM products
+           WHERE id IN (?) AND source_module = 'RESTAURANT' AND type_produit = 'MATIERE_PREMIERE' AND actif = 1`,
+          [ids]
+        );
+        if (availableIngredients.length !== ids.length) {
+          throw ApiError.badRequest('Un ou plusieurs ingrédients ne sont pas disponibles dans le stock restaurant');
+        }
+      }
+
+      const [recipes] = await connection.query(
+        'SELECT id FROM recipes WHERE product_id = ? ORDER BY id DESC LIMIT 1 FOR UPDATE',
+        [productId]
+      );
+      let hasSavedIngredients = false;
+      if (recipes.length) {
+        const [[recipeItemCount]] = await connection.query(
+          'SELECT COUNT(*) AS total FROM recipe_items WHERE recipe_id = ?',
+          [recipes[0].id]
+        );
+        hasSavedIngredients = Number(recipeItemCount.total) > 0;
+      }
+      if (!hasSavedIngredients && normalizedIngredients.length) {
+        const [locations] = await connection.query(
+          "SELECT id FROM stock_locations WHERE LOWER(nom) LIKE '%restaurant%' ORDER BY id LIMIT 1"
+        );
+        if (!locations.length) {
+          throw ApiError.badRequest('Aucun emplacement de stock Restaurant n’a été trouvé');
+        }
+        for (const ingredient of normalizedIngredients) {
+          await stock.recordMovement({
+            productId: ingredient.ingredient_id,
+            locationId: locations[0].id,
+            type: 'SORTIE',
+            quantite: ingredient.quantite,
+            sourceModule: 'RESTAURANT_RECIPE',
+            referenceId: productId,
+            conn: connection,
+            motif: `Utilisation initiale pour la recette du plat #${productId}`,
+            allowNegative: false,
+          });
+        }
+      }
+
+      let recipeId;
+      if (recipes.length) {
+        recipeId = recipes[0].id;
+        await connection.query('DELETE FROM recipe_items WHERE recipe_id = ?', [recipeId]);
+        await connection.query('UPDATE recipes SET nom = ?, updated_at = NOW() WHERE id = ?', [`Recette: ${productId}`, recipeId]);
+      } else {
+        const [result] = await connection.query(
+          'INSERT INTO recipes (product_id, nom, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+          [productId, `Recette: ${productId}`]
+        );
+        recipeId = result.insertId;
+      }
+
+      if (normalizedIngredients.length) {
+        const values = normalizedIngredients.map((ingredient) => [recipeId, ingredient.ingredient_id, ingredient.quantite]);
+        await connection.query(
+          'INSERT INTO recipe_items (recipe_id, ingredient_id, quantite) VALUES ?',
+          [values]
+        );
+      }
+    });
+    return ok(res, { product_id: productId, ingredients: normalizedIngredients });
+  },
   nextCode: async (req, res) => ok(res, { code: await nextRestaurantProductCode() }),
   create: async (req, res) => {
     const productName = String(req.body?.nom || '').trim();
     const normalizedName = normalizeRestaurantProductName(productName);
     const [restaurantProducts] = await pool.query(
-      "SELECT nom FROM products WHERE source_module = 'RESTAURANT'"
+      "SELECT id, nom FROM products WHERE source_module = 'RESTAURANT' AND actif = 1"
     );
-    const duplicate = normalizedName && restaurantProducts.some(
+    const matchingProducts = normalizedName ? restaurantProducts.filter(
       (product) => normalizeRestaurantProductName(product.nom) === normalizedName
-    );
-    if (duplicate) {
-      throw ApiError.conflict(`Le produit « ${productName} » est déjà enregistré et ne peut pas être ajouté une deuxième fois.`);
+    ) : [];
+    if (matchingProducts.length > 0) {
+      const productIds = matchingProducts.map((product) => product.id);
+      const [stockRows] = await pool.query(
+        'SELECT product_id FROM stocks WHERE product_id IN (?)',
+        [productIds]
+      );
+      const productsWithStock = new Set(stockRows.map((row) => Number(row.product_id)));
+      if (matchingProducts.some((product) => productsWithStock.has(Number(product.id)))) {
+        throw ApiError.conflict(`Le produit « ${productName} » est déjà enregistré et ne peut pas être ajouté une deuxième fois.`);
+      }
+
+      const product = await stock.Products.update(matchingProducts[0].id, {
+        ...req.body,
+        nom: productName,
+        source_module: 'RESTAURANT',
+        actif: true,
+      });
+      return ok(res, product);
     }
 
     const code = await nextRestaurantProductCode();
@@ -133,12 +263,28 @@ const productsCrud = {
     return ok(res, await stock.Products.update(req.params.id, { ...req.body, source_module: 'RESTAURANT' }));
   },
   remove: async (req, res) => {
-    const product = await stock.Products.findById(req.params.id);
-    if (!product || product.source_module !== 'RESTAURANT') {
-      throw ApiError.notFound(`Produit restaurant #${req.params.id} introuvable`);
-    }
-    await stock.Products.remove(req.params.id);
-    return noContent(res);
+    const result = await withTransaction(async (connection) => {
+      const [products] = await connection.query(
+        'SELECT id, source_module FROM products WHERE id = ? FOR UPDATE',
+        [req.params.id]
+      );
+      const product = products[0];
+      if (!product || product.source_module !== 'RESTAURANT') {
+        throw ApiError.notFound(`Produit restaurant #${req.params.id} introuvable`);
+      }
+
+      await connection.query('DELETE FROM stocks WHERE product_id = ?', [product.id]);
+
+      try {
+        await connection.query('DELETE FROM products WHERE id = ?', [product.id]);
+        return { deleted: true };
+      } catch (error) {
+        if (error.code !== 'ER_ROW_IS_REFERENCED_2') throw error;
+        await connection.query('UPDATE products SET actif = 0 WHERE id = ?', [product.id]);
+        return { deleted: false, archived: true };
+      }
+    });
+    return ok(res, result);
   }
 };
 
