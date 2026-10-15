@@ -516,7 +516,6 @@ async function createReservationWithGuests({ clientId, roomId, dateArrivee, date
         [reservationId, g.nom, g.prenom || null, g.date_naissance || null, g.type_piece || null, g.numero_piece || null]
       );
     }
-    await conn.query('UPDATE rooms SET statut = "RESERVEE" WHERE id = ?', [roomId]);
     const [row] = await conn.query('SELECT * FROM reservations WHERE id = ?', [reservationId]);
     return row[0];
   });
