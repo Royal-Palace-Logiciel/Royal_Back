@@ -16,7 +16,7 @@ class SeedUser {
       {
         nom: 'Admin',
         prenom: 'Super',
-        email: 'admin@hda.com',
+        email: 'admin@royal.com',
         mot_de_passe: 'admin123',
         role: 'admin',
         statut: 'actif'
@@ -24,7 +24,7 @@ class SeedUser {
       {
         nom: 'Dupont',
         prenom: 'Jean',
-        email: 'jean.manager@hda.com',
+        email: 'jean.manager@royal.com',
         mot_de_passe: 'manager123',
         role: 'manager',
         statut: 'actif'
@@ -32,7 +32,7 @@ class SeedUser {
       {
         nom: 'Martin',
         prenom: 'Sophie',
-        email: 'sophie.reception@hda.com',
+        email: 'sophie.reception@royal.com',
         mot_de_passe: 'reception123',
         role: 'receptioniste',
         statut: 'actif'
@@ -40,7 +40,7 @@ class SeedUser {
       {
         nom: 'Dubois',
         prenom: 'Philippe',
-        email: 'philippe.caisse@hda.com',
+        email: 'philippe.caisse@royal.com',
         mot_de_passe: 'caisse123',
         role: 'caisse',
         statut: 'actif'
@@ -48,7 +48,7 @@ class SeedUser {
       {
         nom: 'Lefevre',
         prenom: 'Nicolas',
-        email: 'nicolas.water@hda.com',
+        email: 'nicolas.water@royal.com',
         mot_de_passe: 'water123',
         role: 'water',
         statut: 'actif'
@@ -56,7 +56,7 @@ class SeedUser {
       {
         nom: 'Rousseau',
         prenom: 'Claire',
-        email: 'claire.housekeeping@hda.com',
+        email: 'claire.housekeeping@royal.com',
         mot_de_passe: 'housekeeping123',
         role: 'housekeeping',
         statut: 'actif'

@@ -474,61 +474,9 @@ CREATE TABLE `bar_transactions` (
 
 LOCK TABLES `bar_transactions` WRITE;
 /*!40000 ALTER TABLE `bar_transactions` DISABLE KEYS */;
-INSERT INTO `bar_transactions` VALUES (5,NULL,6,NULL,5,458,1,1000.00,1000.00,'PAYEE','2026-09-23 10:39:01'),(6,NULL,6,NULL,5,423,1,120000.00,120000.00,'PAYEE','2026-09-23 10:39:01'),(7,NULL,6,NULL,5,420,1,120000.00,120000.00,'PAYEE','2026-09-23 10:39:01'),(8,NULL,7,NULL,6,448,1,0.00,0.00,'PAYEE','2026-09-24 10:50:20'),(9,NULL,5,1,7,458,1,1000.00,1000.00,'PAYEE','2026-09-24 10:52:45'),(48,NULL,5,10,45,448,1,0.00,0.00,'PAYEE','2026-09-24 11:43:57');
+INSERT INTO `bar_transactions` VALUES (5,NULL,6,NULL,5,458,1,1000.00,DEFAULT,'PAYEE','2026-09-23 10:39:01'),(6,NULL,6,NULL,5,423,1,120000.00,DEFAULT,'PAYEE','2026-09-23 10:39:01'),(7,NULL,6,NULL,5,420,1,120000.00,DEFAULT,'PAYEE','2026-09-23 10:39:01'),(8,NULL,7,NULL,6,448,1,0.00,DEFAULT,'PAYEE','2026-09-24 10:50:20'),(9,NULL,5,1,7,458,1,1000.00,DEFAULT,'PAYEE','2026-09-24 10:52:45'),(48,NULL,5,10,45,448,1,0.00,DEFAULT,'PAYEE','2026-09-24 11:43:57');
 /*!40000 ALTER TABLE `bar_transactions` ENABLE KEYS */;
 UNLOCK TABLES;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'NO_AUTO_VALUE_ON_ZERO' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_bar_stock_after_insert
-AFTER INSERT ON bar_transactions
-FOR EACH ROW
-BEGIN
-    IF NEW.statut IN ('SERVIE', 'PAYEE') THEN
-        UPDATE bar_stock 
-        SET quantite = quantite - NEW.quantite
-        WHERE product_id = NEW.product_id;
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'NO_AUTO_VALUE_ON_ZERO' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_bar_stock_after_update
-AFTER UPDATE ON bar_transactions
-FOR EACH ROW
-BEGIN
-    IF NEW.statut IN ('SERVIE', 'PAYEE') AND OLD.statut NOT IN ('SERVIE', 'PAYEE') THEN
-        UPDATE bar_stock 
-        SET quantite = quantite - NEW.quantite
-        WHERE product_id = NEW.product_id;
-    ELSEIF NEW.statut = 'ANNULEE' AND OLD.statut IN ('SERVIE', 'PAYEE') THEN
-        UPDATE bar_stock 
-        SET quantite = quantite + NEW.quantite
-        WHERE product_id = NEW.product_id;
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
 DROP TABLE IF EXISTS `caisse_transfers`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -662,7 +610,7 @@ CREATE TABLE `casino_cashier_sessions` (
 
 LOCK TABLES `casino_cashier_sessions` WRITE;
 /*!40000 ALTER TABLE `casino_cashier_sessions` DISABLE KEYS */;
-INSERT INTO `casino_cashier_sessions` VALUES (1,1,1,'2026-07-07 11:20:03','2026-07-08 16:01:17',10000,20000,20000,0,'FERMEE','Gain','2026-07-07 11:20:03',NULL,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(2,2,1,'2026-07-07 11:49:36','2026-07-08 16:22:53',1000,2,-189869000,189869002,'FERMEE','Gain','2026-07-07 11:49:36',NULL,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(3,3,1,'2026-07-08 15:39:22','2026-07-08 15:40:45',10000,60000,60000,0,'FERMEE','Gain','2026-07-08 15:39:22',NULL,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(4,3,1,'2026-07-08 15:47:28',NULL,1000,NULL,NULL,NULL,'OUVERTE',NULL,'2026-07-08 15:47:28',3,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(5,1,1,'2026-07-08 16:16:02','2026-07-08 16:33:10',20000,81000,-81000,162000,'FERMEE','Gain','2026-07-08 16:16:02',NULL,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(6,2,1,'2026-07-08 16:23:01','2026-07-16 10:03:13',200000,13408000,13408000,0,'FERMEE','Fin','2026-07-08 16:23:01',NULL,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(7,1,1,'2026-07-16 10:08:14',NULL,10000,NULL,NULL,NULL,'OUVERTE',NULL,'2026-07-16 10:08:14',1,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(8,2,1,'2026-07-16 10:08:18',NULL,10000,NULL,NULL,NULL,'OUVERTE',NULL,'2026-07-16 10:08:18',2,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL);
+INSERT INTO `casino_cashier_sessions` VALUES (1,1,1,'2026-07-07 11:20:03','2026-07-08 16:01:17',10000,20000,20000,0,'FERMEE','Gain','2026-07-07 11:20:03',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(2,2,1,'2026-07-07 11:49:36','2026-07-08 16:22:53',1000,2,-189869000,189869002,'FERMEE','Gain','2026-07-07 11:49:36',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(3,3,1,'2026-07-08 15:39:22','2026-07-08 15:40:45',10000,60000,60000,0,'FERMEE','Gain','2026-07-08 15:39:22',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(4,3,1,'2026-07-08 15:47:28',NULL,1000,NULL,NULL,NULL,'OUVERTE',NULL,'2026-07-08 15:47:28',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(5,1,1,'2026-07-08 16:16:02','2026-07-08 16:33:10',20000,81000,-81000,162000,'FERMEE','Gain','2026-07-08 16:16:02',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(6,2,1,'2026-07-08 16:23:01','2026-07-16 10:03:13',200000,13408000,13408000,0,'FERMEE','Fin','2026-07-08 16:23:01',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(7,1,1,'2026-07-16 10:08:14',NULL,10000,NULL,NULL,NULL,'OUVERTE',NULL,'2026-07-16 10:08:14',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),(8,2,1,'2026-07-16 10:08:18',NULL,10000,NULL,NULL,NULL,'OUVERTE',NULL,'2026-07-16 10:08:18',DEFAULT,NULL,0,NULL,NULL,NULL,0,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `casino_cashier_sessions` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `casino_cashiers`;
@@ -720,7 +668,7 @@ CREATE TABLE `casino_chip_transactions` (
 
 LOCK TABLES `casino_chip_transactions` WRITE;
 /*!40000 ALTER TABLE `casino_chip_transactions` DISABLE KEYS */;
-INSERT INTO `casino_chip_transactions` VALUES (1,1,2,1,NULL,'ACHAT',NULL,NULL,1,10000,10000,'ESPECES','a6cc8633-af67-48fc-b3e8-42ba061611a6',1,'2026-07-07 11:57:19'),(2,1,2,1,NULL,'ACHAT',NULL,NULL,1,10000,10000,'ESPECES','7f98ba85-9b3e-4f3c-b0b0-20f9d33021c9',1,'2026-07-07 11:57:27'),(3,1,2,1,NULL,'ACHAT',NULL,NULL,1,10000,10000,'ESPECES','2a22eb5c-a600-4b10-b3a4-291ae3f4b7b9',1,'2026-07-07 15:38:33'),(4,1,2,1,NULL,'ACHAT',NULL,NULL,10,10000,100000,'ESPECES','9c5bb00f-f192-4d8c-8aa5-e6741181d7c1',1,'2026-07-07 15:38:56'),(5,1,2,1,NULL,'ACHAT',NULL,NULL,1000,10000,10000000,'ESPECES','6f401161-cb47-47e7-8f4c-121fb6ce30c2',1,'2026-07-08 11:54:54'),(6,1,2,1,NULL,'REPRISE',NULL,NULL,20000,10000,200000000,'ESPECES','4f61a4bd-3719-4541-8f9f-36dc28128cc7',1,'2026-07-08 11:55:18'),(7,2,3,NULL,NULL,'ACHAT',NULL,NULL,20,1000,20000,'ESPECES','d77507b0-1434-42f4-9afc-e556d9ea48e4',1,'2026-07-08 15:39:36'),(8,2,3,1,NULL,'ACHAT',NULL,NULL,30,1000,30000,'ESPECES','ea750332-a828-4f06-a50a-1c8eddcedd29',1,'2026-07-08 15:39:53'),(9,1,4,2,NULL,'ACHAT',NULL,NULL,30,10000,300000,'ESPECES','14222e98-46ca-4198-9b2d-bbc2f6a3bd90',1,'2026-07-08 15:49:30'),(10,2,4,2,NULL,'REPRISE',NULL,NULL,10,1000,10000,'ESPECES','2168553f-c885-4148-b5ee-ab6825646ae4',1,'2026-07-08 15:55:39'),(11,2,5,2,NULL,'ACHAT',NULL,NULL,2,1000,2000,'ESPECES','a5670f4e-a41e-4353-9383-3844d0b180b0',1,'2026-07-08 16:16:35'),(12,2,5,2,NULL,'REPRISE',NULL,NULL,3,1000,3000,'ESPECES','79a267c2-0f6a-46d3-8c14-2a5e6af15c70',1,'2026-07-08 16:17:02'),(13,1,5,2,NULL,'REPRISE',NULL,NULL,10,10000,100000,'ESPECES','a2e1edb0-dc7b-493b-a3ee-a00c65098f86',1,'2026-07-08 16:18:06'),(14,2,6,NULL,'Bena','ACHAT',NULL,NULL,100,1000,100000,'ESPECES','f9712c65-3b09-4adf-bc0c-f360c53afbdd',1,'2026-07-08 16:23:12'),(15,2,6,NULL,'Bena','REPRISE',NULL,NULL,3,1000,3000,'ESPECES','fffbc821-164c-4c84-95a7-1c6bb95459a9',1,'2026-07-08 16:23:22'),(16,1,4,2,NULL,'ACHAT',NULL,NULL,100,10000,1000000,'ESPECES','ebd9ab0d-b1d2-44e8-9ccc-a405064876b2',1,'2026-07-09 10:06:28'),(17,2,4,NULL,'Riry','ACHAT',NULL,NULL,20,1000,20000,'ESPECES','37ecd2f6-cdbb-43ba-9d29-f58a98087864',1,'2026-07-09 10:21:55'),(18,2,4,1,NULL,'ACHAT',NULL,NULL,900,1000,900000,'ESPECES','26e14ab0-24f0-4199-91f6-91751952b6f2',1,'2026-07-09 10:23:23');
+INSERT INTO `casino_chip_transactions` VALUES (1,1,2,1,NULL,'ACHAT',NULL,NULL,1,10000,DEFAULT,'ESPECES','a6cc8633-af67-48fc-b3e8-42ba061611a6',1,'2026-07-07 11:57:19'),(2,1,2,1,NULL,'ACHAT',NULL,NULL,1,10000,DEFAULT,'ESPECES','7f98ba85-9b3e-4f3c-b0b0-20f9d33021c9',1,'2026-07-07 11:57:27'),(3,1,2,1,NULL,'ACHAT',NULL,NULL,1,10000,DEFAULT,'ESPECES','2a22eb5c-a600-4b10-b3a4-291ae3f4b7b9',1,'2026-07-07 15:38:33'),(4,1,2,1,NULL,'ACHAT',NULL,NULL,10,10000,DEFAULT,'ESPECES','9c5bb00f-f192-4d8c-8aa5-e6741181d7c1',1,'2026-07-07 15:38:56'),(5,1,2,1,NULL,'ACHAT',NULL,NULL,1000,10000,DEFAULT,'ESPECES','6f401161-cb47-47e7-8f4c-121fb6ce30c2',1,'2026-07-08 11:54:54'),(6,1,2,1,NULL,'REPRISE',NULL,NULL,20000,10000,DEFAULT,'ESPECES','4f61a4bd-3719-4541-8f9f-36dc28128cc7',1,'2026-07-08 11:55:18'),(7,2,3,NULL,NULL,'ACHAT',NULL,NULL,20,1000,DEFAULT,'ESPECES','d77507b0-1434-42f4-9afc-e556d9ea48e4',1,'2026-07-08 15:39:36'),(8,2,3,1,NULL,'ACHAT',NULL,NULL,30,1000,DEFAULT,'ESPECES','ea750332-a828-4f06-a50a-1c8eddcedd29',1,'2026-07-08 15:39:53'),(9,1,4,2,NULL,'ACHAT',NULL,NULL,30,10000,DEFAULT,'ESPECES','14222e98-46ca-4198-9b2d-bbc2f6a3bd90',1,'2026-07-08 15:49:30'),(10,2,4,2,NULL,'REPRISE',NULL,NULL,10,1000,DEFAULT,'ESPECES','2168553f-c885-4148-b5ee-ab6825646ae4',1,'2026-07-08 15:55:39'),(11,2,5,2,NULL,'ACHAT',NULL,NULL,2,1000,DEFAULT,'ESPECES','a5670f4e-a41e-4353-9383-3844d0b180b0',1,'2026-07-08 16:16:35'),(12,2,5,2,NULL,'REPRISE',NULL,NULL,3,1000,DEFAULT,'ESPECES','79a267c2-0f6a-46d3-8c14-2a5e6af15c70',1,'2026-07-08 16:17:02'),(13,1,5,2,NULL,'REPRISE',NULL,NULL,10,10000,DEFAULT,'ESPECES','a2e1edb0-dc7b-493b-a3ee-a00c65098f86',1,'2026-07-08 16:18:06'),(14,2,6,NULL,'Bena','ACHAT',NULL,NULL,100,1000,DEFAULT,'ESPECES','f9712c65-3b09-4adf-bc0c-f360c53afbdd',1,'2026-07-08 16:23:12'),(15,2,6,NULL,'Bena','REPRISE',NULL,NULL,3,1000,DEFAULT,'ESPECES','fffbc821-164c-4c84-95a7-1c6bb95459a9',1,'2026-07-08 16:23:22'),(16,1,4,2,NULL,'ACHAT',NULL,NULL,100,10000,DEFAULT,'ESPECES','ebd9ab0d-b1d2-44e8-9ccc-a405064876b2',1,'2026-07-09 10:06:28'),(17,2,4,NULL,'Riry','ACHAT',NULL,NULL,20,1000,DEFAULT,'ESPECES','37ecd2f6-cdbb-43ba-9d29-f58a98087864',1,'2026-07-09 10:21:55'),(18,2,4,1,NULL,'ACHAT',NULL,NULL,900,1000,DEFAULT,'ESPECES','26e14ab0-24f0-4199-91f6-91751952b6f2',1,'2026-07-09 10:23:23');
 /*!40000 ALTER TABLE `casino_chip_transactions` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `casino_chip_types`;
@@ -1828,7 +1776,7 @@ CREATE TABLE `paf_sessions` (
 
 LOCK TABLES `paf_sessions` WRITE;
 /*!40000 ALTER TABLE `paf_sessions` DISABLE KEYS */;
-INSERT INTO `paf_sessions` VALUES (1,'2026-09-22','CLOTUREE','2026-09-22 14:17:39','2026-09-24 13:36:41',1,1,'2026-09-22 14:17:39','2026-09-24 13:36:41',NULL),(2,'2026-09-24','CLOTUREE','2026-09-24 13:36:41','2026-09-24 13:38:01',1,1,'2026-09-24 13:36:41','2026-09-24 13:38:01',NULL),(3,'2026-09-24','OUVERTE','2026-09-24 13:38:01',NULL,1,NULL,'2026-09-24 13:38:01','2026-09-24 13:38:01',1);
+INSERT INTO `paf_sessions` VALUES (1,'2026-09-22','CLOTUREE','2026-09-22 14:17:39','2026-09-24 13:36:41',1,1,'2026-09-22 14:17:39','2026-09-24 13:36:41',DEFAULT),(2,'2026-09-24','CLOTUREE','2026-09-24 13:36:41','2026-09-24 13:38:01',1,1,'2026-09-24 13:36:41','2026-09-24 13:38:01',DEFAULT),(3,'2026-09-24','OUVERTE','2026-09-24 13:38:01',NULL,1,NULL,'2026-09-24 13:38:01','2026-09-24 13:38:01',DEFAULT);
 /*!40000 ALTER TABLE `paf_sessions` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `payments`;
@@ -2872,7 +2820,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `v_casino_ecarts_caisse` AS select `cs`.`id` AS `session_id`,`c`.`nom` AS `caisse`,`r`.`nom` AS `salle`,`cs`.`user_id` AS `user_id`,`cs`.`ouverture_at` AS `ouverture_at`,`cs`.`fermeture_at` AS `fermeture_at`,`cs`.`fond_initial` AS `fond_initial`,`cs`.`fond_final_theorique` AS `fond_final_theorique`,`cs`.`fond_final_declare` AS `fond_final_declare`,`cs`.`ecart` AS `ecart` from ((`casino_cashier_sessions` `cs` join `casino_cashiers` `c` on(`c`.`id` = `cs`.`cashier_id`)) join `casino_rooms` `r` on(`r`.`id` = `c`.`room_id`)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2885,7 +2833,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `v_casino_encours_credit` AS select `cl`.`id` AS `client_id`,concat(`cl`.`nom`,' ',coalesce(`cl`.`prenom`,'')) AS `client`,count(`cr`.`id`) AS `nb_credits_actifs`,sum(`cr`.`encours`) AS `encours_total`,max(`cr`.`echeance`) AS `prochaine_echeance` from (`casino_credits` `cr` join `clients` `cl` on(`cl`.`id` = `cr`.`client_id`)) where `cr`.`statut` in ('ACTIF','EN_RETARD') group by `cl`.`id`,`cl`.`nom`,`cl`.`prenom` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2898,7 +2846,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `v_casino_produit_net_jour` AS select `r`.`id` AS `room_id`,`r`.`nom` AS `salle`,cast(`co`.`created_at` as date) AS `jour`,sum(case when `co`.`type_operation` in ('BUY_IN','DEPOT') then `co`.`montant` else 0 end) AS `total_entrees`,sum(case when `co`.`type_operation` in ('CASH_OUT','REMBOURSEMENT_CREDIT') then `co`.`montant` else 0 end) AS `total_sorties`,sum(case when `co`.`type_operation` in ('BUY_IN','DEPOT') then `co`.`montant` else 0 end) - sum(case when `co`.`type_operation` in ('CASH_OUT','REMBOURSEMENT_CREDIT') then `co`.`montant` else 0 end) AS `produit_net` from (((`casino_cash_operations` `co` join `casino_cashier_sessions` `cs` on(`cs`.`id` = `co`.`cashier_session_id`)) join `casino_cashiers` `c` on(`c`.`id` = `cs`.`cashier_id`)) join `casino_rooms` `r` on(`r`.`id` = `c`.`room_id`)) group by `r`.`id`,`r`.`nom`,cast(`co`.`created_at` as date) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2911,7 +2859,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_unicode_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `vw_room_account_summary` AS select `r`.`id` AS `reservation_id`,`r`.`client_id` AS `client_id`,`r`.`room_id` AS `room_id`,`room`.`numero` AS `room_number`,concat(coalesce(`c`.`prenom`,''),' ',coalesce(`c`.`nom`,'')) AS `hotel_client`,`r`.`statut` AS `reservation_status`,coalesce(`r`.`montant_total`,0) AS `reservation_amount`,coalesce(sum(`bo`.`montant_total`),0) AS `bar_amount`,coalesce(`r`.`montant_total`,0) + coalesce(sum(`bo`.`montant_total`),0) AS `total_to_pay`,max(`bo`.`created_at`) AS `last_bar_purchase_at` from (((`reservations` `r` left join `clients` `c` on(`c`.`id` = `r`.`client_id`)) left join `rooms` `room` on(`room`.`id` = `r`.`room_id`)) left join `bar_orders` `bo` on(`bo`.`hotel_reservation_id` = `r`.`id` and `bo`.`room_account_paid` = 0)) where `r`.`statut` in ('CONFIRMEE','CHECKED_IN','EN_COURS','TERMINEE') group by `r`.`id`,`r`.`client_id`,`r`.`room_id`,`room`.`numero`,`c`.`prenom`,`c`.`nom`,`r`.`statut`,`r`.`montant_total` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
