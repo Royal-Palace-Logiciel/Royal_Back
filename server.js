@@ -20,7 +20,7 @@ const allowedOrigins = [
   'http://localhost:3001',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
-  'https://hda-frontend-ecru.vercel.app',
+  'https://royal-front-puce.vercel.app/',
   ...(process.env.CORS_ORIGIN || '')
     .split(',')
     .map((origin) => origin.trim())
