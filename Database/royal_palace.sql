@@ -477,58 +477,6 @@ LOCK TABLES `bar_transactions` WRITE;
 INSERT INTO `bar_transactions` VALUES (5,NULL,6,NULL,5,458,1,1000.00,1000.00,'PAYEE','2026-09-23 10:39:01'),(6,NULL,6,NULL,5,423,1,120000.00,120000.00,'PAYEE','2026-09-23 10:39:01'),(7,NULL,6,NULL,5,420,1,120000.00,120000.00,'PAYEE','2026-09-23 10:39:01'),(8,NULL,7,NULL,6,448,1,0.00,0.00,'PAYEE','2026-09-24 10:50:20'),(9,NULL,5,1,7,458,1,1000.00,1000.00,'PAYEE','2026-09-24 10:52:45'),(48,NULL,5,10,45,448,1,0.00,0.00,'PAYEE','2026-09-24 11:43:57');
 /*!40000 ALTER TABLE `bar_transactions` ENABLE KEYS */;
 UNLOCK TABLES;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'NO_AUTO_VALUE_ON_ZERO' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_bar_stock_after_insert
-AFTER INSERT ON bar_transactions
-FOR EACH ROW
-BEGIN
-    IF NEW.statut IN ('SERVIE', 'PAYEE') THEN
-        UPDATE bar_stock 
-        SET quantite = quantite - NEW.quantite
-        WHERE product_id = NEW.product_id;
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'NO_AUTO_VALUE_ON_ZERO' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg_bar_stock_after_update
-AFTER UPDATE ON bar_transactions
-FOR EACH ROW
-BEGIN
-    IF NEW.statut IN ('SERVIE', 'PAYEE') AND OLD.statut NOT IN ('SERVIE', 'PAYEE') THEN
-        UPDATE bar_stock 
-        SET quantite = quantite - NEW.quantite
-        WHERE product_id = NEW.product_id;
-    ELSEIF NEW.statut = 'ANNULEE' AND OLD.statut IN ('SERVIE', 'PAYEE') THEN
-        UPDATE bar_stock 
-        SET quantite = quantite + NEW.quantite
-        WHERE product_id = NEW.product_id;
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
 DROP TABLE IF EXISTS `caisse_transfers`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -2872,7 +2820,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `v_casino_ecarts_caisse` AS select `cs`.`id` AS `session_id`,`c`.`nom` AS `caisse`,`r`.`nom` AS `salle`,`cs`.`user_id` AS `user_id`,`cs`.`ouverture_at` AS `ouverture_at`,`cs`.`fermeture_at` AS `fermeture_at`,`cs`.`fond_initial` AS `fond_initial`,`cs`.`fond_final_theorique` AS `fond_final_theorique`,`cs`.`fond_final_declare` AS `fond_final_declare`,`cs`.`ecart` AS `ecart` from ((`casino_cashier_sessions` `cs` join `casino_cashiers` `c` on(`c`.`id` = `cs`.`cashier_id`)) join `casino_rooms` `r` on(`r`.`id` = `c`.`room_id`)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2885,7 +2833,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `v_casino_encours_credit` AS select `cl`.`id` AS `client_id`,concat(`cl`.`nom`,' ',coalesce(`cl`.`prenom`,'')) AS `client`,count(`cr`.`id`) AS `nb_credits_actifs`,sum(`cr`.`encours`) AS `encours_total`,max(`cr`.`echeance`) AS `prochaine_echeance` from (`casino_credits` `cr` join `clients` `cl` on(`cl`.`id` = `cr`.`client_id`)) where `cr`.`statut` in ('ACTIF','EN_RETARD') group by `cl`.`id`,`cl`.`nom`,`cl`.`prenom` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2898,7 +2846,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `v_casino_produit_net_jour` AS select `r`.`id` AS `room_id`,`r`.`nom` AS `salle`,cast(`co`.`created_at` as date) AS `jour`,sum(case when `co`.`type_operation` in ('BUY_IN','DEPOT') then `co`.`montant` else 0 end) AS `total_entrees`,sum(case when `co`.`type_operation` in ('CASH_OUT','REMBOURSEMENT_CREDIT') then `co`.`montant` else 0 end) AS `total_sorties`,sum(case when `co`.`type_operation` in ('BUY_IN','DEPOT') then `co`.`montant` else 0 end) - sum(case when `co`.`type_operation` in ('CASH_OUT','REMBOURSEMENT_CREDIT') then `co`.`montant` else 0 end) AS `produit_net` from (((`casino_cash_operations` `co` join `casino_cashier_sessions` `cs` on(`cs`.`id` = `co`.`cashier_session_id`)) join `casino_cashiers` `c` on(`c`.`id` = `cs`.`cashier_id`)) join `casino_rooms` `r` on(`r`.`id` = `c`.`room_id`)) group by `r`.`id`,`r`.`nom`,cast(`co`.`created_at` as date) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2911,7 +2859,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8mb4 */;
 /*!50001 SET collation_connection      = utf8mb4_unicode_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50013 SQL SECURITY INVOKER */
 /*!50001 VIEW `vw_room_account_summary` AS select `r`.`id` AS `reservation_id`,`r`.`client_id` AS `client_id`,`r`.`room_id` AS `room_id`,`room`.`numero` AS `room_number`,concat(coalesce(`c`.`prenom`,''),' ',coalesce(`c`.`nom`,'')) AS `hotel_client`,`r`.`statut` AS `reservation_status`,coalesce(`r`.`montant_total`,0) AS `reservation_amount`,coalesce(sum(`bo`.`montant_total`),0) AS `bar_amount`,coalesce(`r`.`montant_total`,0) + coalesce(sum(`bo`.`montant_total`),0) AS `total_to_pay`,max(`bo`.`created_at`) AS `last_bar_purchase_at` from (((`reservations` `r` left join `clients` `c` on(`c`.`id` = `r`.`client_id`)) left join `rooms` `room` on(`room`.`id` = `r`.`room_id`)) left join `bar_orders` `bo` on(`bo`.`hotel_reservation_id` = `r`.`id` and `bo`.`room_account_paid` = 0)) where `r`.`statut` in ('CONFIRMEE','CHECKED_IN','EN_COURS','TERMINEE') group by `r`.`id`,`r`.`client_id`,`r`.`room_id`,`room`.`numero`,`c`.`prenom`,`c`.`nom`,`r`.`statut`,`r`.`montant_total` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
