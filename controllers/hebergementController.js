@@ -409,7 +409,12 @@ async function updateRoomHandler(req, res) {
   }
   const existing = await heb.Rooms.findById(req.params.id);
   if (!existing) throw ApiError.notFound(`rooms #${req.params.id} introuvable`);
-  return ok(res, await heb.Rooms.update(req.params.id, req.body));
+  try {
+    return ok(res, await heb.updateRoom(req.params.id, req.body));
+  } catch (err) {
+    if (err.statusCode === 409) throw ApiError.conflict(err.message);
+    throw err;
+  }
 }
 
 async function updateRoomTypeHandler(req, res) {
@@ -636,6 +641,8 @@ async function updateRoomStatusHandler(req, res) {
     const room = await heb.updateRoomStatus(req.params.id, statut);
     return ok(res, room);
   } catch (err) {
+    if (err.statusCode === 409) throw ApiError.conflict(err.message);
+    if (err.message.includes('introuvable')) throw ApiError.notFound(err.message);
     throw ApiError.badRequest(err.message);
   }
 }

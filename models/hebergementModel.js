@@ -15,6 +15,62 @@ const Rooms = createCrudModel({
   sortable: ['id', 'numero', 'statut', 'prix_nuit', 'etage'],
 });
 
+Rooms.findAll = async function ({ whereSql = '', whereValues = [], orderBy = '`id` DESC', limit, offset } = {}) {
+  let query = `SELECT rooms.*, EXISTS(SELECT 1 FROM reservations WHERE reservations.room_id = rooms.id AND COALESCE(reservations.statut, '') NOT IN ('TERMINEE', 'ANNULEE', 'NO_SHOW') LIMIT 1) AS has_reservations FROM rooms`;
+  if (whereSql) query += ` ${whereSql}`;
+  query += ` ORDER BY ${orderBy}`;
+  const params = [...whereValues];
+  if (limit !== undefined) {
+    query += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset || 0);
+  }
+  const [rows] = await pool.query(query, params);
+  return rows;
+};
+
+async function updateRoom(id, data) {
+  return withTransaction(async (conn) => {
+    const [existingRows] = await conn.query('SELECT * FROM rooms WHERE id = ? FOR UPDATE', [id]);
+    const existing = existingRows[0];
+    if (!existing) throw new Error(`Chambre #${id} introuvable`);
+
+    const statusChanged = data.statut !== undefined && data.statut !== existing.statut;
+    if (statusChanged) {
+      const [reservations] = await conn.query(
+        "SELECT id FROM reservations WHERE room_id = ? AND COALESCE(statut, '') NOT IN ('TERMINEE', 'ANNULEE', 'NO_SHOW') LIMIT 1",
+        [id]
+      );
+      if (reservations.length) {
+        const error = new Error('Le statut ne peut pas être modifié car cette chambre est liée à une réservation.');
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    const fields = Rooms.fields.filter((field) => data[field] !== undefined);
+    if (fields.length) {
+      const values = fields.map((field) => data[field] && typeof data[field] === 'object' ? JSON.stringify(data[field]) : data[field]);
+      await conn.query(
+        `UPDATE rooms SET ${fields.map((field) => `\`${field}\` = ?`).join(', ')} WHERE id = ?`,
+        [...values, id]
+      );
+    }
+
+    if (statusChanged) {
+      await conn.query(
+        `INSERT INTO room_status_history (room_id, ancien_statut, nouveau_statut, changed_at)
+         VALUES (?, ?, ?, NOW())`,
+        [id, existing.statut, data.statut]
+      );
+    }
+
+    const [updatedRows] = await conn.query('SELECT * FROM rooms WHERE id = ?', [id]);
+    return updatedRows[0];
+  });
+}
+
+Rooms.update = updateRoom;
+
 const Equipments = createCrudModel({
   table: 'equipments', pk: 'id',
   fields: ['code', 'nom', 'categorie', 'description', 'zone', 'quantite', 'is_consumable'],
@@ -461,11 +517,9 @@ async function isRoomAvailable(roomId, dateArrivee, dateDepart, excludeReservati
     return true; // Allow if dates are invalid (form validation should catch this)
   }
   
-  // For completed reservations, we should check overlap to prevent double booking
-  // Only exclude ANNULEE and NO_SHOW from blocking
   let sql = `
     SELECT COUNT(*) AS conflits FROM reservations
-    WHERE room_id = ? AND statut NOT IN ('ANNULEE', 'NO_SHOW')
+    WHERE room_id = ? AND COALESCE(statut, '') NOT IN ('ANNULEE', 'NO_SHOW', 'TERMINEE')
     AND date_arrivee < ? AND date_depart > ?`;
   const params = [roomId, dateDepart, dateArrivee];
   if (excludeReservationId) {
@@ -1166,21 +1220,7 @@ async function getReservationStats() {
 
 // Met à jour uniquement le statut d'une chambre
 async function updateRoomStatus(id, statut) {
-  const [existing] = await pool.query('SELECT * FROM rooms WHERE id = ?', [id]);
-  if (!existing[0]) throw new Error(`Chambre #${id} introuvable`);
-  const ancienStatut = existing[0].statut;
-  if (ancienStatut === statut) return existing[0];
-
-  return withTransaction(async (conn) => {
-    await conn.query('UPDATE rooms SET statut = ? WHERE id = ?', [statut, id]);
-    await conn.query(
-      `INSERT INTO room_status_history (room_id, ancien_statut, nouveau_statut, changed_at)
-       VALUES (?, ?, ?, NOW())`,
-      [id, ancienStatut, statut]
-    );
-    const [updated] = await conn.query('SELECT * FROM rooms WHERE id = ?', [id]);
-    return updated[0];
-  });
+  return updateRoom(id, { statut });
 }
 
 // Récupère un équipement par son code
@@ -1486,7 +1526,7 @@ module.exports = {
   isRoomAvailable, createReservationWithGuests, validateReservationDiscount, recordReservationPayment,
   createReservationPayment, applyReservationPaymentTransaction, listReservationPayments, getReservationCollectionReport, checkIn, checkOut, availableRooms,
   updateMaintenanceStatus, getMaintenanceStats, getReservationStats,
-  updateRoomStatus, getEquipmentByCode, getEquipmentCategories, getEquipmentStats,
+  updateRoom, updateRoomStatus, getEquipmentByCode, getEquipmentCategories, getEquipmentStats,
   updateRoomEquipmentStatus, getRoomStats, saveMaintenance, saveHousekeepingTask,
   deleteMaintenance, deleteHousekeepingTask, updateHousekeepingStatus, getHousekeepingStats,
   transferStockToMinibar, handleMinibarConsumption, getMinibarWithAlerts, getLowStockMinibarItems, restockMinibar,
