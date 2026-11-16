@@ -1,10 +1,18 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
 
+function quoteIdentifier(identifier) {
+  if (!/^[A-Za-z0-9_$]+$/.test(identifier)) {
+    throw new Error(`Nom de base invalide: ${identifier}`);
+  }
+  return `\`${identifier}\``;
+}
+
 async function cleanReimport() {
+  let connection;
   try {
     // Connect without database first
-    const connection = await mysql.createConnection({
+    connection = await mysql.createConnection({
       host: process.env.DB_HOST || '127.0.0.1',
       port: Number(process.env.DB_PORT) || 3306,
       user: process.env.DB_USER || 'root',
@@ -13,20 +21,17 @@ async function cleanReimport() {
     });
 
     const dbName = process.env.DB_NAME || 'hda';
+    const quotedDbName = quoteIdentifier(dbName);
     
     console.log(`🔧 Suppression de la base de données '${dbName}'...`);
-    try {
-      await connection.query(`DROP DATABASE IF EXISTS ${dbName}`);
-      console.log('✅ Base de données supprimée');
-    } catch (e) {
-      console.log('⚠️  Impossible de supprimer:', e.message);
-    }
+    await connection.query(`DROP DATABASE IF EXISTS ${quotedDbName}`);
+    console.log('✅ Base de données supprimée');
 
     console.log(`\n🔨 Création de la base de données '${dbName}'...`);
-    await connection.query(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await connection.query(`CREATE DATABASE ${quotedDbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     console.log('✅ Base de données créée');
 
-    await connection.query(`USE ${dbName}`);
+    await connection.query(`USE ${quotedDbName}`);
 
     console.log('\n📥 Import du schéma...');
     
@@ -45,15 +50,20 @@ async function cleanReimport() {
     const [rows] = await connection.query('SELECT COUNT(*) as count FROM users');
     console.log(`✅ Table users fonctionnelle ! Nombre d'utilisateurs: ${rows[0].count}`);
 
-    await connection.end();
-    
     console.log('\n🎉 Base de données restaurée avec succès !');
     console.log('Vous pouvez maintenant exécuter: npm run seed');
     
   } catch (error) {
     console.error('❌ Erreur:', error.message);
-    process.exit(1);
+    if (error.sql) console.error('SQL:', error.sql);
+    process.exitCode = 1;
+  } finally {
+    if (connection) await connection.end();
   }
 }
 
-cleanReimport();
+if (require.main === module) {
+  cleanReimport();
+}
+
+module.exports = cleanReimport;

@@ -23,10 +23,22 @@ const clientsCrud = createCrudController(Clients, {
 // POST /api/clients — nom est le seul champ obligatoire ; code_client est
 // toujours auto-généré au format CH<n>/<année> (voir clientModel.createClient).
 async function createClientHandler(req, res) {
-  if (!req.body?.nom || !String(req.body.nom).trim()) {
-    throw ApiError.badRequest('Le nom est requis');
+  const data = req.body || {};
+  const typeClient = data.type_client || 'INDIVIDUEL';
+  if (!['INDIVIDUEL', 'SOCIETE', 'TOUR_OPERATEUR'].includes(typeClient)) {
+    throw ApiError.badRequest('type_client invalide');
   }
-  const client = await createClient(req.body);
+  const required = typeClient === 'INDIVIDUEL'
+    ? ['nom', 'adresse', 'telephone', 'email']
+    : ['nom_societe', 'adresse', 'telephone', 'email'];
+  const missing = required.find((field) => !String(data[field] || '').trim());
+  if (missing) {
+    throw ApiError.badRequest(`${missing} est requis pour ce type de client`);
+  }
+  if (typeClient === 'TOUR_OPERATEUR' && !String(data.reference_client || '').trim()) {
+    throw ApiError.badRequest('reference_client est requis pour un tour opérateur');
+  }
+  const client = await createClient({ ...data, nom: typeClient === 'INDIVIDUEL' ? data.nom : data.nom_societe, prenom: typeClient === 'INDIVIDUEL' ? data.prenom : null });
   return created(res, renderClient(client));
 }
 

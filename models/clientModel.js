@@ -6,7 +6,7 @@ const Clients = createCrudModel({
   table: 'clients',
   pk: 'id',
   fields: [
-    'code_client', 'nom', 'prenom', 'telephone', 'email', 'adresse',
+    'code_client', 'type_client', 'nom', 'prenom', 'telephone', 'email', 'adresse',
     'date_naissance', 'type_piece', 'numero_piece', 'photo_url',
     'statut',
   ],
@@ -48,7 +48,7 @@ const ClientKyc = createCrudModel({
 // Champs modifiables librement sur un client (code_client est géré à part : voir
 // createClient / updateClient ci-dessous).
 const CLIENT_FIELDS = [
-  'nom', 'prenom', 'telephone', 'email', 'adresse',
+  'type_client', 'nom', 'prenom', 'telephone', 'email', 'adresse',
   'date_naissance', 'type_piece', 'numero_piece', 'photo_url',
   'statut',
 ];
@@ -103,6 +103,35 @@ async function createClient(data = {}) {
         break;
       } catch (err) {
         if (err?.code !== 'ER_DUP_ENTRY' || attempt >= 5) throw err;
+      }
+    }
+
+    const typeClient = data.type_client || 'INDIVIDUEL';
+    if (typeClient === 'SOCIETE' || typeClient === 'TOUR_OPERATEUR') {
+      const companyFields = [
+        data.nom_societe || data.nom,
+        data.adresse,
+        data.nif || null,
+        data.stat || null,
+        data.rcs || null,
+        data.cif || null,
+        data.telephone,
+        data.email,
+      ];
+      if (typeClient === 'TOUR_OPERATEUR') {
+        await conn.query(
+          `INSERT INTO hotel_tour_operators
+             (client_id, nom_societe, adresse, nif, stat, rcs, cif, telephone, email, reference_client)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, ...companyFields, data.reference_client]
+        );
+      } else {
+        await conn.query(
+          `INSERT INTO hotel_societes
+             (client_id, nom_societe, adresse, nif, stat, rcs, cif, telephone, email)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, ...companyFields]
+        );
       }
     }
 

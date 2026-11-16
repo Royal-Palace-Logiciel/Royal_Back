@@ -275,12 +275,16 @@ async function financialSummary() {
 
   // Le stock Hébergement utilise ses propres tables et doit être valorisé
   // avec le prix défini sur chaque produit.
-  const [hebergementStockValues] = await pool.query(
-    `SELECT COALESCE(SUM(hs.quantite * COALESCE(hp.prix, 0)), 0) AS montant
-       FROM hebergement_stock hs
-       JOIN hebergement_products hp ON hp.id = hs.product_id`
-  );
-  add('hebergement', 'sorties', hebergementStockValues[0]?.montant);
+  const [[hebergementStockTable]] = await pool.query("SHOW TABLES LIKE 'hebergement_stock'");
+  const [[hebergementProductsTable]] = await pool.query("SHOW TABLES LIKE 'hebergement_products'");
+  if (hebergementStockTable && hebergementProductsTable) {
+    const [hebergementStockValues] = await pool.query(
+      `SELECT COALESCE(SUM(hs.quantite * COALESCE(hp.prix, 0)), 0) AS montant
+         FROM hebergement_stock hs
+         JOIN hebergement_products hp ON hp.id = hs.product_id`
+    );
+    add('hebergement', 'sorties', hebergementStockValues[0]?.montant);
+  }
 
   // Le bar utilise ses propres tables de produits et de stock.
   if (barStockTable) {

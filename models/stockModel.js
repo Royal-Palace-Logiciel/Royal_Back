@@ -3,6 +3,64 @@ const { pool, withTransaction } = require('../config/db');
 const { createCrudModel } = require('./crudFactory');
 const ApiError = require('../utils/ApiError');
 
+let schemaReady;
+
+async function ensureStockSchema() {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS subcategories (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          category_id BIGINT UNSIGNED NOT NULL,
+          nom VARCHAR(100) NOT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          KEY idx_subcategories_category_id (category_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      const productColumns = new Set((await pool.query('SHOW COLUMNS FROM products'))[0].map((column) => column.Field));
+      const productDefinitions = {
+        subcategory_id: 'BIGINT UNSIGNED NULL',
+        portion_size: 'DECIMAL(10,2) NULL',
+        portion_unite: 'VARCHAR(20) NULL',
+      };
+      for (const [column, definition] of Object.entries(productDefinitions)) {
+        if (!productColumns.has(column)) {
+          await pool.query(`ALTER TABLE products ADD COLUMN \`${column}\` ${definition}`);
+        }
+      }
+
+      const stockColumns = new Set((await pool.query('SHOW COLUMNS FROM stocks'))[0].map((column) => column.Field));
+      const stockDefinitions = {
+        seuil_minimum: 'DECIMAL(12,2) NOT NULL DEFAULT 0',
+        etat: "VARCHAR(30) NOT NULL DEFAULT 'NORMAL'",
+      };
+      for (const [column, definition] of Object.entries(stockDefinitions)) {
+        if (!stockColumns.has(column)) {
+          await pool.query(`ALTER TABLE stocks ADD COLUMN \`${column}\` ${definition}`);
+        }
+      }
+
+      const movementColumns = new Set((await pool.query('SHOW COLUMNS FROM stock_movements'))[0].map((column) => column.Field));
+      const movementDefinitions = {
+        stock_after: 'DECIMAL(15,2) NULL',
+        motif: 'VARCHAR(255) DEFAULT NULL',
+        user_id: 'BIGINT UNSIGNED DEFAULT NULL',
+      };
+      for (const [column, definition] of Object.entries(movementDefinitions)) {
+        if (!movementColumns.has(column)) {
+          await pool.query(`ALTER TABLE stock_movements ADD COLUMN \`${column}\` ${definition}`);
+        }
+      }
+    })().catch((error) => {
+      schemaReady = undefined;
+      throw error;
+    });
+  }
+  return schemaReady;
+}
+
 const Categories = createCrudModel({
   table: 'categories', pk: 'id', fields: ['nom'], sortable: ['id', 'nom'],
 });
@@ -43,6 +101,7 @@ const Stocks = createCrudModel({
 
 // Custom method to get stocks with product information
 async function getProductsWithStock(locationId = null) {
+  await ensureStockSchema();
   let sql = `
         SELECT s.*, p.nom as product_nom, p.unite as product_unite, p.code as product_code,
           p.prix_achat, p.prix_vente, p.prix_achat as prix, p.category_id, c.nom AS category_name,
@@ -281,4 +340,5 @@ module.exports = {
   Categories, Subcategories, ProductTypes, Units, Products, StockLocations, Stocks, StockMovements,
   Suppliers, Purchases, PurchaseItems,
   recordMovement, createPurchaseWithItems, lowStock, stockByProduct, getProductsWithStock, consumePortion, getStockQuantity,
+  ensureStockSchema,
 };

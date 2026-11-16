@@ -1,6 +1,47 @@
 const { createCrudModel } = require('./crudFactory');
 const { withTransaction } = require('../config/db');
 
+let schemaReady;
+
+async function ensureBarProductSchema() {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      const pool = require('../config/db').pool;
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS bar_products (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          nom VARCHAR(150) NOT NULL,
+          ingredients TEXT DEFAULT NULL,
+          prix DECIMAL(10,2) NOT NULL DEFAULT 0,
+          categorie VARCHAR(50) DEFAULT 'Bar',
+          alcool TINYINT(1) DEFAULT 0,
+          type_produit VARCHAR(50) DEFAULT 'PRODUIT_FINI',
+          source_module VARCHAR(50) DEFAULT 'BAR',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          KEY idx_bar_products_categorie (categorie)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS bar_stock (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          product_id BIGINT UNSIGNED NOT NULL,
+          quantite DECIMAL(12,2) NOT NULL DEFAULT 0,
+          seuil_minimum DECIMAL(12,2) NOT NULL DEFAULT 0,
+          unite VARCHAR(30) NOT NULL DEFAULT 'unités',
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          UNIQUE KEY uk_bar_stock_product_id (product_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    })().catch((error) => {
+      schemaReady = undefined;
+      throw error;
+    });
+  }
+  return schemaReady;
+}
+
 const barProducts = createCrudModel({
   table: 'bar_products',
   pk: 'id',
@@ -9,6 +50,7 @@ const barProducts = createCrudModel({
 });
 
 async function getBarProductsWithStock() {
+  await ensureBarProductSchema();
   const pool = require('../config/db').pool;
   const [rows] = await pool.query(`
     SELECT bp.*, bs.product_id, bs.quantite, bs.seuil_minimum, bs.unite
@@ -20,6 +62,7 @@ async function getBarProductsWithStock() {
 }
 
 async function addBarProductWithStock(data) {
+  await ensureBarProductSchema();
   const nom = String(data.nom || '').trim();
   const categorie = String(data.categorie || data.category || 'Bar').trim();
   const prix = Number(data.prix ?? data.prixUnitaire ?? data.prix_unitaire ?? data.price ?? 0);
@@ -49,6 +92,7 @@ async function addBarProductWithStock(data) {
 }
 
 async function updateBarProductWithStock(id, data) {
+  await ensureBarProductSchema();
   const nom = String(data.nom || '').trim();
   const categorie = String(data.categorie || data.category || 'Bar').trim();
   const prix = Number(data.prix ?? data.prixUnitaire ?? data.prix_unitaire ?? data.price ?? 0);
@@ -80,6 +124,7 @@ async function updateBarProductWithStock(id, data) {
 }
 
 async function deleteBarProductWithStock(id) {
+  await ensureBarProductSchema();
   return withTransaction(async (conn) => {
     const [products] = await conn.query('SELECT id FROM bar_products WHERE id = ? FOR UPDATE', [id]);
     if (!products.length) throw new Error(`Produit bar #${id} introuvable`);
@@ -97,4 +142,5 @@ module.exports = {
   addBarProductWithStock,
   updateBarProductWithStock,
   deleteBarProductWithStock,
+  ensureBarProductSchema,
 };
