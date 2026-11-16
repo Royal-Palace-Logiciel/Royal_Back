@@ -72,6 +72,7 @@ async function nextRestaurantProductCode() {
 const productsCrud = {
   ...createCrudController(stock.Products, { filterable: ['category_id', 'subcategory_id', 'actif'] }),
   list: async (req, res) => {
+    await stock.ensureStockSchema();
     const { category_id, subcategory_id, actif } = req.query;
     let whereSql = "WHERE p.type_produit = 'PRODUIT_FINI' AND p.source_module = 'RESTAURANT'";
     const params = [];
@@ -562,6 +563,13 @@ async function ordersInProgressHandler(req, res) {
 }
 
 async function restaurantStockHandler(req, res) {
+  await stock.ensureStockSchema();
+  const locationId = req.query.location_id ? Number(req.query.location_id) : null;
+  const hasLocation = Number.isInteger(locationId) && locationId > 0;
+  const stockJoin = hasLocation
+    ? 'LEFT JOIN stocks s ON s.product_id = p.id AND s.location_id = ? JOIN stock_locations sl ON sl.id = ?'
+    : 'JOIN stocks s ON s.product_id = p.id JOIN stock_locations sl ON sl.id = s.location_id';
+  const stockParams = hasLocation ? [locationId, locationId] : [];
   const [rows] = await pool.query(
     `SELECT s.id, p.id AS product_id, sl.id AS location_id, COALESCE(s.quantite, 0) AS quantite,
             p.nom AS product_nom, p.unite, p.code, p.type_produit,
@@ -569,14 +577,13 @@ async function restaurantStockHandler(req, res) {
             c.nom AS category_nom, sc.nom AS subcategory_nom,
             p.portion_size, p.portion_unite,
             sl.nom AS location_nom
-     FROM stocks s
-     JOIN products p ON p.id = s.product_id
-     JOIN stock_locations sl ON sl.id = s.location_id
+     FROM products p
+     ${stockJoin}
      LEFT JOIN categories c ON c.id = p.category_id
      LEFT JOIN subcategories sc ON sc.id = p.subcategory_id
-     WHERE p.actif = 1${req.query.location_id ? ' AND s.location_id = ?' : ''}${req.query.type_produit ? ' AND p.type_produit = ?' : ''}
+     WHERE p.actif = 1 AND p.source_module = 'RESTAURANT'${req.query.type_produit ? ' AND p.type_produit = ?' : ''}
      ORDER BY p.nom ASC`,
-    [...(req.query.location_id ? [req.query.location_id] : []), ...(req.query.type_produit ? [req.query.type_produit] : [])]
+    [...stockParams, ...(req.query.type_produit ? [req.query.type_produit] : [])]
   );
   return ok(res, rows);
 }
@@ -738,6 +745,7 @@ async function createRestaurantPurchaseHandler(req, res) {
 }
 
 async function menuHandler(req, res) {
+  await stock.ensureStockSchema();
   const [rows] = await pool.query(
     `SELECT p.*, c.nom AS category_nom 
      FROM products p 

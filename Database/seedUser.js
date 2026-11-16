@@ -16,8 +16,8 @@ class SeedUser {
       {
         nom: 'Admin',
         prenom: 'Super',
-        email: 'admin@royal.com',
-        mot_de_passe: 'admin123',
+        email: 'admin@royalpalaceantsirabe.com',
+        mot_de_passe: 'admin1234',
         role: 'admin',
         statut: 'actif'
       },

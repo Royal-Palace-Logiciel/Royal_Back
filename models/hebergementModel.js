@@ -56,7 +56,7 @@ const RoomStatusHistory = createCrudModel({
 
 const Reservations = createCrudModel({
   table: 'reservations', pk: 'id',
-  fields: ['client_id', 'room_id', 'date_arrivee', 'date_depart', 'pdj_inclus', 'moyen_paiement', 'montant_brut', 'remise_pourcentage', 'montant_remise', 'remise_validee_par', 'remise_validee_at', 'montant_total', 'statut', 'type_reservation', 'laundry_included', 'laundry_price', 'manual_price', 'services_extras', 'services_extras_total', 'created_by', 'modified_by', 'created_at', 'updated_at'],
+  fields: ['client_id', 'room_id', 'date_arrivee', 'date_depart', 'pdj_inclus', 'moyen_paiement', 'montant_brut', 'remise_pourcentage', 'montant_remise', 'remise_validee_par', 'remise_validee_at', 'montant_total', 'statut', 'type_reservation', 'tarif_category', 'laundry_included', 'laundry_price', 'manual_price', 'services_extras', 'services_extras_total', 'created_by', 'modified_by', 'created_at', 'updated_at'],
   sortable: ['id', 'date_arrivee', 'date_depart', 'statut', 'created_at', 'updated_at'],
 });
 
@@ -206,21 +206,9 @@ Reservations.create = async function (data) {
   return findReservationWithDetails(row.id);
 };
 Reservations.update = async function (id, data, modifiedBy = null) {
-  const willComplete = String(data?.statut || '').toUpperCase() === 'TERMINEE';
   const changesAmount = Object.prototype.hasOwnProperty.call(data || {}, 'montant_total');
-  const [[before]] = await pool.query('SELECT statut FROM reservations WHERE id = ? LIMIT 1', [id]);
-  const wasCompleted = String(before?.statut || '').toUpperCase() === 'TERMINEE';
-  // Encaissement = passage à TERMINEE, ou nouvel encaissement explicite (avec mode de
-  // paiement) d'une réservation déjà terminée qui a reçu des rectifications. Une simple
-  // modification depuis le formulaire ne déclenche jamais d'encaissement : la
-  // rectification reste « à payer » jusqu'au prochain « Encaisser ».
-  const isPaymentRequest = willComplete && (!wasCompleted || Boolean(data?.moyen_paiement));
+  const willComplete = String(data?.statut || '').toUpperCase() === 'TERMINEE';
   if (willComplete || changesAmount) {
-    // reservationsCrudUpdate() committe immédiatement (pas de transaction). Si on laissait
-    // recordReservationPayment() faire cette même vérification après coup, un montant
-    // invalide committerait quand même le passage à TERMINEE avant de faire échouer la
-    // requête (statut incohérent : TERMINEE sans paiement enregistré). On valide donc
-    // avant d'écrire quoi que ce soit.
     const [[current]] = await pool.query('SELECT statut, montant_total FROM reservations WHERE id = ? LIMIT 1', [id]);
     const nextStatut = data?.statut !== undefined ? String(data.statut).toUpperCase() : String(current?.statut || '').toUpperCase();
     const nextMontant = changesAmount ? Number(data.montant_total) : Number(current?.montant_total);
@@ -240,14 +228,6 @@ Reservations.update = async function (id, data, modifiedBy = null) {
   }
   
   await reservationsCrudUpdate.call(this, id, updateData);
-  // Depuis la page Hôtel, « encaisser » met directement la réservation à
-  // TERMINEE. On encaisse alors ce qui reste dû dans la caisse Hôtel.
-  if (isPaymentRequest) {
-    const payment = await recordReservationPayment(id, 'HOTEL', { createdBy: modifiedBy });
-    if (!payment.est_payee && !wasCompleted) {
-      await pool.query('UPDATE reservations SET statut = ? WHERE id = ?', [before.statut, id]);
-    }
-  }
   return findReservationWithDetails(id);
 };
 Reservations.remove = async function (id) {
@@ -479,7 +459,7 @@ async function isRoomAvailable(roomId, dateArrivee, dateDepart, excludeReservati
 }
 
 // Crée une réservation + ses accompagnants dans une transaction
-async function createReservationWithGuests({ clientId, roomId, dateArrivee, dateDepart, pdjInclus = false, montantTotal, montantBrut, remisePourcentage, montantRemise, statut, guests = [], typeReservation = 'BOOKING', laundryIncluded = false, laundryPrice = 0, manualPrice = 0, createdBy = null, servicesExtras = null, servicesExtrasTotal = 0 }) {
+async function createReservationWithGuests({ clientId, roomId, dateArrivee, dateDepart, pdjInclus = false, montantTotal, montantBrut, remisePourcentage, montantRemise, statut, guests = [], occupants = [], typeReservation = 'BOOKING', origineReservation = 'DESK', tarifCategory = 'PUBLIC', laundryIncluded = false, laundryPrice = 0, manualPrice = 0, createdBy = null, servicesExtras = null, servicesExtrasTotal = 0 }) {
   return withTransaction(async (conn) => {
     // Utilise le statut envoyé par le contrôleur ou 'EN_COURS' par défaut
     const statusValue = statut || 'EN_COURS';
@@ -492,17 +472,32 @@ async function createReservationWithGuests({ clientId, roomId, dateArrivee, date
 
     let query, params;
     if (hasCreatedBy) {
-      query = `INSERT INTO reservations (client_id, room_id, date_arrivee, date_depart, pdj_inclus, montant_brut, remise_pourcentage, montant_remise, montant_total, statut, type_reservation, laundry_included, laundry_price, manual_price, created_by, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
-      params = [clientId, roomId, dateArrivee, dateDepart, Boolean(pdjInclus), montantBrut, remisePourcentage || 0, montantRemise || 0, montantTotal, statusValue, typeReservation, Boolean(laundryIncluded), laundryPrice, manualPrice, createdBy];
+      query = `INSERT INTO reservations (client_id, room_id, date_arrivee, date_depart, pdj_inclus, montant_brut, remise_pourcentage, montant_remise, montant_total, statut, type_reservation, origine_reservation, tarif_category, laundry_included, laundry_price, manual_price, created_by, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      params = [clientId, roomId, dateArrivee, dateDepart, Boolean(pdjInclus), montantBrut, remisePourcentage || 0, montantRemise || 0, montantTotal, statusValue, typeReservation, origineReservation, tarifCategory, Boolean(laundryIncluded), laundryPrice, manualPrice, createdBy];
     } else {
       query = `INSERT INTO reservations (client_id, room_id, date_arrivee, date_depart, pdj_inclus, montant_brut, remise_pourcentage, montant_remise, montant_total, statut, type_reservation, laundry_included, laundry_price, manual_price)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       params = [clientId, roomId, dateArrivee, dateDepart, Boolean(pdjInclus), montantBrut, remisePourcentage || 0, montantRemise || 0, montantTotal, statusValue, typeReservation, Boolean(laundryIncluded), laundryPrice, manualPrice];
     }
 
     const [result] = await conn.query(query, params);
     const reservationId = result.insertId;
+    await conn.query(
+      `INSERT INTO hotel_invoices
+         (reservation_id, invoice_type, numero, montant_total, statut, editable)
+       VALUES (?, 'PROFORMA', ?, ?, 'EMISE', 1)`,
+      [reservationId, `PF-${String(reservationId).padStart(6, '0')}`, montantTotal]
+    );
+    const [[proforma]] = await conn.query(
+      `SELECT id FROM hotel_invoices WHERE reservation_id = ? AND invoice_type = 'PROFORMA'`,
+      [reservationId]
+    );
+    await conn.query(
+      `INSERT INTO hotel_invoice_items (invoice_id, description, quantite, prix_unitaire, montant)
+       VALUES (?, 'Hébergement', 1, ?, ?)`,
+      [proforma.id, montantTotal, montantTotal]
+    );
     if (servicesExtras) {
       await conn.query(
         'UPDATE reservations SET services_extras = ?, services_extras_total = ? WHERE id = ?',
@@ -514,6 +509,16 @@ async function createReservationWithGuests({ clientId, roomId, dateArrivee, date
         `INSERT INTO reservation_guests (reservation_id, nom, prenom, date_naissance, type_piece, numero_piece)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [reservationId, g.nom, g.prenom || null, g.date_naissance || null, g.type_piece || null, g.numero_piece || null]
+      );
+    }
+    for (const occupant of occupants) {
+      await conn.query(
+        `INSERT INTO hotel_occupants
+           (reservation_id, room_id, client_id, nom, prenom, telephone, email, date_naissance, type_piece, numero_piece)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [reservationId, occupant.room_id || roomId, occupant.client_id || null, occupant.nom,
+          occupant.prenom || null, occupant.telephone || null, occupant.email || null,
+          occupant.date_naissance || null, occupant.type_piece || null, occupant.numero_piece || null]
       );
     }
     const [row] = await conn.query('SELECT * FROM reservations WHERE id = ?', [reservationId]);
@@ -637,10 +642,9 @@ async function applyReservationPaymentTransaction(conn, reservationId, {
           SET montant_paye = montant_paye + ?,
               montant_encaisse = montant_encaisse + ?,
               montant_gratuit = montant_gratuit + ?,
-              montant_credit = ?,
-              statut = CASE WHEN ? <= 0 AND statut IN ('CHECKED_IN', 'EN_COURS') THEN 'TERMINEE' ELSE statut END
+              montant_credit = ?
         WHERE id = ?`,
-      [covered, payment.amountCollected, payment.amountFree, nextCredit, payment.remainingDue, reservation.id]
+      [covered, payment.amountCollected, payment.amountFree, nextCredit, reservation.id]
     );
 
     return {
@@ -659,6 +663,57 @@ async function applyReservationPaymentTransaction(conn, reservationId, {
 async function createReservationPayment(reservationId, options = {}) {
   const result = await withTransaction((conn) => applyReservationPaymentTransaction(conn, reservationId, options));
   return { ...result, reservation: await findReservationWithDetails(reservationId) };
+}
+
+async function getHotelInvoice(reservationId, invoiceType = null) {
+  const params = [reservationId];
+  let where = 'reservation_id = ?';
+  if (invoiceType) {
+    where += ' AND invoice_type = ?';
+    params.push(invoiceType);
+  }
+  const [invoices] = await pool.query(`SELECT * FROM hotel_invoices WHERE ${where} ORDER BY id DESC`, params);
+  for (const invoice of invoices) {
+    const [items] = await pool.query('SELECT * FROM hotel_invoice_items WHERE invoice_id = ?', [invoice.id]);
+    invoice.items = items;
+  }
+  return invoiceType ? invoices[0] || null : invoices;
+}
+
+async function finalizeHotelInvoice(conn, reservation) {
+  const total = Number(reservation.montant_total || 0);
+  const paid = Number(reservation.montant_paye || 0);
+  const credit = Math.max(0, total - paid);
+  const status = credit > 0 ? 'CREDIT' : 'PAYEE';
+  const [existing] = await conn.query(
+    `SELECT id FROM hotel_invoices WHERE reservation_id = ? AND invoice_type = 'FINALE' LIMIT 1 FOR UPDATE`,
+    [reservation.id]
+  );
+  let invoiceId = existing[0]?.id;
+  if (!invoiceId) {
+    const [result] = await conn.query(
+      `INSERT INTO hotel_invoices
+         (reservation_id, invoice_type, numero, montant_total, montant_paye, montant_credit,
+          statut, editable, issued_at)
+       VALUES (?, 'FINALE', ?, ?, ?, ?, ?, 0, NOW())`,
+      [reservation.id, `FA-${String(reservation.id).padStart(6, '0')}`, total, paid, credit, status]
+    );
+    invoiceId = result.insertId;
+    await conn.query(
+      `INSERT INTO hotel_invoice_items (invoice_id, description, quantite, prix_unitaire, montant)
+       VALUES (?, 'Hébergement', 1, ?, ?)`,
+      [invoiceId, total, total]
+    );
+  } else {
+    await conn.query(
+      `UPDATE hotel_invoices SET montant_total = ?, montant_paye = ?, montant_credit = ?, statut = ?, editable = 0, issued_at = COALESCE(issued_at, NOW())
+       WHERE id = ?`,
+      [total, paid, credit, status, invoiceId]
+    );
+  }
+  await conn.query('UPDATE reservations SET facture_statut = ? WHERE id = ?', [status === 'CREDIT' ? 'CREDIT' : 'FINALE', reservation.id]);
+  const [rows] = await conn.query('SELECT * FROM hotel_invoices WHERE id = ?', [invoiceId]);
+  return rows[0];
 }
 
 // Encaisse ce qui reste dû sur une réservation (montant_total - montant_paye).
@@ -867,30 +922,18 @@ async function checkIn(reservationId) {
       [reservation.room_id]
     );
 
-    let invoice = null;
     const total = Number(reservation.montant_total || 0);
-    if (total > 0) {
-      const description = `Hébergement - Réservation #${reservationId}`;
-      const [existingInvoices] = await conn.query(
-        `SELECT i.* FROM invoices i
-         JOIN invoice_items ii ON ii.invoice_id = i.id
-         WHERE ii.description = ? LIMIT 1 FOR UPDATE`,
-        [description]
+    const [invoiceRows] = await conn.query(
+      `SELECT * FROM hotel_invoices WHERE reservation_id = ? AND invoice_type = 'PROFORMA' LIMIT 1 FOR UPDATE`,
+      [reservationId]
+    );
+    const invoice = invoiceRows[0] || null;
+    if (invoice) {
+      await conn.query(
+        `UPDATE hotel_invoices SET montant_total = ?, statut = 'EMISE', editable = 1, updated_at = NOW() WHERE id = ?`,
+        [total, invoice.id]
       );
-      if (existingInvoices[0]) {
-        invoice = existingInvoices[0];
-      } else {
-        const [invoiceResult] = await conn.query(
-          `INSERT INTO invoices (client_id, montant_total, statut) VALUES (?, ?, 'EN_ATTENTE')`,
-          [reservation.client_id, total]
-        );
-        await conn.query(
-          `INSERT INTO invoice_items (invoice_id, description, montant) VALUES (?, ?, ?)`,
-          [invoiceResult.insertId, description, total]
-        );
-        const [invoiceRows] = await conn.query('SELECT * FROM invoices WHERE id = ?', [invoiceResult.insertId]);
-        invoice = invoiceRows[0];
-      }
+      await conn.query('UPDATE reservations SET facture_statut = "PROFORMA" WHERE id = ?', [reservationId]);
     }
 
     const [stay] = await conn.query('SELECT * FROM stays WHERE id = ?', [result.insertId]);
@@ -898,7 +941,7 @@ async function checkIn(reservationId) {
   });
 }
 
-// Check-out : clôture le séjour, passe la réservation en "TERMINEE" et la chambre en "NETTOYAGE"
+// Check-out : clôture le séjour, termine la réservation et libère la chambre.
 async function checkOut(stayId) {
   return withTransaction(async (conn) => {
     const [stayRows] = await conn.query('SELECT s.*, r.room_id, r.id as reservation_id, r.client_id, r.montant_total FROM stays s JOIN reservations r ON r.id = s.reservation_id WHERE s.id = ?', [stayId]);
@@ -907,28 +950,26 @@ async function checkOut(stayId) {
 
     await conn.query('UPDATE stays SET checkout_at = NOW() WHERE id = ?', [stayId]);
     await conn.query('UPDATE reservations SET statut = "TERMINEE" WHERE id = ?', [stay.reservation_id]);
-    await conn.query('UPDATE rooms SET statut = "NETTOYAGE" WHERE id = ?', [stay.room_id]);
+    await conn.query('UPDATE rooms SET statut = "LIBRE" WHERE id = ?', [stay.room_id]);
     await conn.query(
       `INSERT INTO room_status_history (room_id, ancien_statut, nouveau_statut, changed_at)
-       VALUES (?, 'OCCUPEE', 'NETTOYAGE', NOW())`,
+       VALUES (?, 'OCCUPEE', 'LIBRE', NOW())`,
       [stay.room_id]
     );
 
-    // Create financial transaction for accommodation checkout revenue
     const montant = Number(stay.montant_total) || 0;
-    if (montant > 0) {
-      await conn.query(
-        `INSERT INTO financial_transactions
-           (client_id, module, type_flux, montant, reference_id, ref_flux_global, description, statut_sync, created_at)
-         VALUES (?, 'HEBERGEMENT', 'ENTREE', ?, ?, ?, ?, 'SYNCED', NOW())`,
-        [stay.client_id, montant, stay.reservation_id,
-          `HEBERGEMENT-CHECKOUT-${stay.reservation_id}`,
-          `Encaissement séjour hébergement #${stay.reservation_id}`]
-      );
-    }
+    const [[payment]] = await conn.query(
+      'SELECT COALESCE(montant_paye, 0) AS montant_paye FROM reservations WHERE id = ?',
+      [stay.reservation_id]
+    );
+    const invoice = await finalizeHotelInvoice(conn, {
+      id: stay.reservation_id,
+      montant_total: montant,
+      montant_paye: payment.montant_paye,
+    });
 
     const [updated] = await conn.query('SELECT * FROM stays WHERE id = ?', [stayId]);
-    return updated[0];
+    return { ...updated[0], invoice };
   });
 }
 
@@ -1484,7 +1525,7 @@ module.exports = {
   RoomStatusHistory, Reservations, ReservationGuests, Stays, HousekeepingTasks, MaintenanceWorkers,
   LostAndFound, MinibarConsumptions,
   isRoomAvailable, createReservationWithGuests, validateReservationDiscount, recordReservationPayment,
-  createReservationPayment, applyReservationPaymentTransaction, listReservationPayments, getReservationCollectionReport, checkIn, checkOut, availableRooms,
+  createReservationPayment, applyReservationPaymentTransaction, listReservationPayments, getReservationCollectionReport, getHotelInvoice, checkIn, checkOut, availableRooms,
   updateMaintenanceStatus, getMaintenanceStats, getReservationStats,
   updateRoomStatus, getEquipmentByCode, getEquipmentCategories, getEquipmentStats,
   updateRoomEquipmentStatus, getRoomStats, saveMaintenance, saveHousekeepingTask,

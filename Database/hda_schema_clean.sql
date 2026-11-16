@@ -432,6 +432,7 @@ CREATE TABLE `categories` (
 CREATE TABLE `clients` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `code_client` varchar(50) DEFAULT NULL,
+  `type_client` enum('INDIVIDUEL','SOCIETE','TOUR_OPERATEUR') NOT NULL DEFAULT 'INDIVIDUEL',
   `nom` varchar(100) NOT NULL,
   `prenom` varchar(100) DEFAULT NULL,
   `telephone` varchar(50) DEFAULT NULL,
@@ -443,6 +444,8 @@ CREATE TABLE `clients` (
   `photo_url` text DEFAULT NULL,
   `is_casino_player` tinyint(1) DEFAULT 0,
   `statut` varchar(30) DEFAULT 'ACTIF',
+  `deleted_at` datetime DEFAULT NULL,
+  `deleted_by` bigint(20) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -503,6 +506,10 @@ CREATE TABLE `equipments` (
   `nom` varchar(100) NOT NULL,
   `categorie` varchar(50) DEFAULT NULL,
   `description` text DEFAULT NULL,
+  `zone` varchar(100) DEFAULT NULL,
+  `quantite` int(10) UNSIGNED NOT NULL DEFAULT 1,
+  `is_consumable` tinyint(1) NOT NULL DEFAULT 0,
+  `product_id` bigint(20) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -519,6 +526,7 @@ CREATE TABLE `financial_transactions` (
   `module` varchar(30) DEFAULT NULL,
   `type_flux` varchar(30) DEFAULT NULL,
   `montant` bigint(20) DEFAULT NULL,
+  `moyen_paiement` varchar(30) DEFAULT NULL,
   `reference_id` bigint(20) DEFAULT NULL,
   `ref_flux_global` varchar(64) DEFAULT NULL,
   `description` text DEFAULT NULL,
@@ -781,7 +789,34 @@ CREATE TABLE `reservations` (
   `date_arrivee` date DEFAULT NULL,
   `date_depart` date DEFAULT NULL,
   `montant_total` bigint(20) DEFAULT NULL,
+  `moyen_paiement` varchar(30) DEFAULT NULL,
+  `montant_paye` decimal(15,2) NOT NULL DEFAULT 0,
+  `montant_encaisse` decimal(15,2) NOT NULL DEFAULT 0,
+  `montant_credit` decimal(15,2) NOT NULL DEFAULT 0,
+  `montant_gratuit` decimal(15,2) NOT NULL DEFAULT 0,
   `statut` varchar(30) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `reservation_payments`
+--
+
+CREATE TABLE `reservation_payments` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `reservation_id` bigint(20) UNSIGNED NOT NULL,
+  `montant` decimal(15,2) NOT NULL DEFAULT 0,
+  `montant_encaisse` decimal(15,2) NOT NULL DEFAULT 0,
+  `montant_credit` decimal(15,2) NOT NULL DEFAULT 0,
+  `montant_gratuit` decimal(15,2) NOT NULL DEFAULT 0,
+  `moyen_paiement` varchar(30) DEFAULT NULL,
+  `statut` varchar(30) NOT NULL DEFAULT 'ENREGISTRE',
+  `details` longtext DEFAULT NULL,
+  `ref_flux_global` varchar(100) DEFAULT NULL,
+  `idempotency_key` varchar(100) DEFAULT NULL,
+  `created_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -840,6 +875,7 @@ CREATE TABLE `rooms` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `room_type_id` bigint(20) UNSIGNED DEFAULT NULL,
   `numero` varchar(20) DEFAULT NULL,
+  `etage` int(11) NOT NULL DEFAULT 0,
   `capacite` int(11) DEFAULT NULL,
   `prix_nuit` bigint(20) DEFAULT NULL,
   `statut` enum('LIBRE','OCCUPEE','RESERVEE','NETTOYAGE','MAINTENANCE','HORS_SERVICE') DEFAULT 'LIBRE'
@@ -856,6 +892,7 @@ CREATE TABLE `room_equipments` (
   `room_id` bigint(20) UNSIGNED NOT NULL,
   `equipment_id` bigint(20) UNSIGNED NOT NULL,
   `quantite` int(11) DEFAULT 1,
+  `zone` varchar(100) DEFAULT NULL,
   `statut` enum('BON','EN_PANNE','REMPLACE','HORS_SERVICE') DEFAULT 'BON',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
@@ -979,6 +1016,8 @@ CREATE TABLE `stock_locations` (
   `nom` varchar(100) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+INSERT INTO `stock_locations` (`id`, `nom`) VALUES (5, 'Hôtel');
+
 --
 
 --
@@ -993,7 +1032,10 @@ CREATE TABLE `stock_movements` (
   `quantite` decimal(15,2) DEFAULT NULL,
   `source_module` varchar(30) DEFAULT NULL,
   `reference_id` bigint(20) DEFAULT NULL,
-  `created_at` datetime DEFAULT NULL
+  `created_at` datetime DEFAULT NULL,
+  `stock_after` decimal(15,2) DEFAULT NULL,
+  `motif` varchar(255) DEFAULT NULL,
+  `user_id` bigint(20) UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -1046,7 +1088,8 @@ CREATE TABLE `users` (
   `prenom` varchar(100) NOT NULL,
   `email` varchar(150) NOT NULL,
   `mot_de_passe` varchar(255) NOT NULL,
-  `role` enum('admin','manager','receptioniste','caisse','water','housekeeping') NOT NULL DEFAULT 'admin',
+  `role` enum('admin','manager','receptioniste','caisse','caissier','water','housekeeping','hotesse','stock_manager') NOT NULL DEFAULT 'admin',
+  `module` text DEFAULT NULL,
   `statut` enum('actif','inactif') NOT NULL DEFAULT 'actif',
   `date_creation` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

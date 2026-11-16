@@ -15,7 +15,8 @@
     "seed:unit": "node Database/seedUnit.js",
     "seed:productType": "node Database/seedProductType.js",
     "seed:ingredients": "node Database/seedRestaurantIngredients.js",
-    "seed:refresh": "node Database/seed.js --refresh"
+    "seed:refresh": "node Database/seed.js --refresh",
+    "migrate:compatibility": "node Database/runMigration.js Database/migrations/20261105_schema_compatibility.sql"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

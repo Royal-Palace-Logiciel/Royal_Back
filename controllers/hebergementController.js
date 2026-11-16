@@ -436,7 +436,7 @@ async function availableRoomsHandler(req, res) {
 }
 
 async function createReservationHandler(req, res) {
-  const { client_id, room_id, date_arrivee, date_depart, pdj_inclus = false, remise_pourcentage = 0, guests, statut, type_reservation = 'BOOKING', laundry_included = false, laundry_price = 0, manual_price = 0, exchange_rate = 39.76, services_extras } = req.body;
+  const { client_id, room_id, date_arrivee, date_depart, pdj_inclus = false, remise_pourcentage = 0, guests, occupants = [], statut, type_reservation = 'BOOKING', origine_reservation = 'DESK', tarif_category = 'PUBLIC', laundry_included = false, laundry_price = 0, manual_price = 0, exchange_rate = 39.76, services_extras } = req.body;
   if (!client_id || !room_id || !date_arrivee || !date_depart) {
     throw ApiError.badRequest('client_id, room_id, date_arrivee, date_depart sont requis');
   }
@@ -450,6 +450,18 @@ async function createReservationHandler(req, res) {
   const room = await heb.Rooms.findById(room_id);
   const nights = Math.ceil((new Date(date_depart) - new Date(date_arrivee)) / 86400000);
   if (!room || nights <= 0) throw ApiError.badRequest('Dates ou chambre invalides');
+  if (!['SOCIETE', 'TOUR_OPERATEUR', 'PUBLIC'].includes(tarif_category)) {
+    throw ApiError.badRequest('tarif_category invalide');
+  }
+  if (!['TELEPHONE', 'DESK', 'MAIL'].includes(String(origine_reservation).toUpperCase())) {
+    throw ApiError.badRequest('origine_reservation invalide');
+  }
+  if (!Array.isArray(occupants)) throw ApiError.badRequest('occupants doit être un tableau');
+  for (const occupant of occupants) {
+    if (!occupant?.nom || !occupant?.room_id) {
+      throw ApiError.badRequest('Chaque occupant doit avoir un nom et une chambre');
+    }
+  }
   
   let gross = 0;
   
@@ -460,7 +472,14 @@ async function createReservationHandler(req, res) {
     gross = totalEur * rate;
   } else {
     // For On-site, use room's normal price
-    gross = Number(room.prix_nuit || 0) * nights;
+    const [[rate]] = await pool.query(
+      `SELECT hrr.amount
+         FROM hotel_room_rates hrr
+         JOIN room_types rt ON rt.id = ? AND rt.id = hrr.room_type_id
+        WHERE hrr.rate_category = ? AND hrr.year = YEAR(?)`,
+      [room.room_type_id, tarif_category, date_arrivee]
+    );
+    gross = Number(rate?.amount ?? room.prix_nuit ?? 0) * nights;
   }
   
   // Add laundry price if included
@@ -486,7 +505,10 @@ async function createReservationHandler(req, res) {
     montantRemise: discountAmount,
     statut: statut || 'EN_COURS',
     guests: guests || [],
+    occupants,
     typeReservation: type_reservation,
+    origineReservation: String(origine_reservation).toUpperCase(),
+    tarifCategory: tarif_category,
     laundryIncluded: laundry_included,
     laundryPrice: laundry_price,
     manualPrice: manual_price,
@@ -554,6 +576,14 @@ async function checkOutHandler(req, res) {
   } catch (err) {
     throw ApiError.badRequest(err.message);
   }
+}
+
+async function hotelInvoiceHandler(req, res) {
+  const invoice = await heb.getHotelInvoice(req.params.reservationId, req.query.type || null);
+  if (!invoice || (Array.isArray(invoice) && invoice.length === 0)) {
+    throw ApiError.notFound('Facture Hôtel introuvable');
+  }
+  return ok(res, invoice);
 }
 
 async function updateMaintenanceStatusHandler(req, res) {
@@ -1034,7 +1064,7 @@ module.exports = {
   roomTypesCrud, roomsCrud, equipmentsCrud, roomEquipmentsCrud, roomMaintenanceCrud, maintenanceWorkersCrud,
   roomMinibarCrud, roomStatusHistoryCrud, reservationsCrud, reservationGuestsCrud,
   staysCrud, housekeepingCrud, lostAndFoundCrud, minibarConsumptionsCrud,
-  availabilityHandler, availableRoomsHandler, updateRoomHandler, updateRoomTypeHandler, createReservationHandler, validateReservationDiscountHandler, reservationPaymentsHandler, createReservationPaymentHandler, createMaintenanceHandler, checkInHandler, checkOutHandler,
+  availabilityHandler, availableRoomsHandler, updateRoomHandler, updateRoomTypeHandler, createReservationHandler, validateReservationDiscountHandler, reservationPaymentsHandler, createReservationPaymentHandler, createMaintenanceHandler, checkInHandler, checkOutHandler, hotelInvoiceHandler,
   updateMaintenanceStatusHandler, maintenanceStatsHandler, reservationStatsHandler,
   reservationCollectionReportHandler, saveReservationCollectionReportHandler,
   updateRoomStatusHandler, equipmentByCodeHandler, equipmentCategoriesHandler, createEquipmentHandler, updateEquipmentHandler,
