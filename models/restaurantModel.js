@@ -1,6 +1,8 @@
 // models/restaurantModel.js
 const { pool, withTransaction } = require('../config/db');
 const { createCrudModel } = require('./crudFactory');
+const stock = require('./stockModel');
+const ApiError = require('../utils/ApiError');
 
 let restaurantSchemaReady;
 
@@ -123,7 +125,15 @@ const RestaurantSessions = createCrudModel({
 // Crée une commande + ses lignes, calcule le montant_total automatiquement.
 async function createOrderWithItems({ clientId, tableId, items, notes, locationType, specialPersonName }) {
   await ensureRestaurantSchema();
+  await stock.ensureStockSchema();
   return withTransaction(async (conn) => {
+    const [[restaurantLocation]] = await conn.query(
+      "SELECT id FROM stock_locations WHERE LOWER(nom) LIKE '%restaurant%' ORDER BY id LIMIT 1"
+    );
+    if (!restaurantLocation) {
+      throw ApiError.badRequest("Aucun emplacement de stock Restaurant n'est configuré.");
+    }
+
     const montantTotal = items.reduce((sum, it) => sum + Number(it.quantite) * Number(it.prix_unitaire), 0);
 
     const [result] = await conn.query(
@@ -134,6 +144,17 @@ async function createOrderWithItems({ clientId, tableId, items, notes, locationT
     const orderId = result.insertId;
 
     for (const it of items) {
+      await stock.recordMovement({
+        conn,
+        productId: Number(it.product_id),
+        locationId: Number(restaurantLocation.id),
+        type: 'SORTIE',
+        quantite: Number(it.quantite),
+        sourceModule: 'RESTAURANT',
+        referenceId: orderId,
+        motif: `Commande restaurant #${orderId}`,
+        allowNegative: false,
+      });
       await conn.query(
         `INSERT INTO order_items (order_id, product_id, quantite, prix_unitaire, cuisson) VALUES (?, ?, ?, ?, ?)`,
         [orderId, it.product_id, it.quantite, it.prix_unitaire, it.cuisson || null]

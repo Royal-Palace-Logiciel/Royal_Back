@@ -91,7 +91,11 @@ const productsCrud = {
     }
 
     const [rows] = await pool.query(
-      `SELECT p.*, c.nom AS category_nom, sc.nom AS subcategory_nom 
+      `SELECT p.*, c.nom AS category_nom, sc.nom AS subcategory_nom,
+              COALESCE((SELECT SUM(s.quantite)
+                        FROM stocks s
+                        JOIN stock_locations sl ON sl.id = s.location_id
+                        WHERE s.product_id = p.id AND LOWER(sl.nom) LIKE '%restaurant%'), 0) AS quantite_stock
        FROM products p 
        LEFT JOIN categories c ON c.id = p.category_id 
        LEFT JOIN subcategories sc ON sc.id = p.subcategory_id 
@@ -588,6 +592,11 @@ async function restaurantStockHandler(req, res) {
   return ok(res, rows);
 }
 
+async function restaurantStockLocationsHandler(req, res) {
+  await stock.ensureStockSchema();
+  return ok(res, await stock.StockLocations.findAll({ orderBy: '`nom` ASC' }));
+}
+
 async function restaurantStockMovementsHandler(req, res) {
   const conditions = [];
   const values = [];
@@ -1034,7 +1043,7 @@ module.exports = {
   tablesCrud, ordersCrud, orderItemsCrud, cashiersCrud, sessionsCrud, productsCrud,
   createOrderHandler, updateOrderHandler, orderDetailHandler, orderInvoiceHandler, ordersInProgressHandler,
   orderInvoicePdfHandler, closeAllRestaurantOrdersHandler,
-  restaurantStockHandler, restaurantStockMovementsHandler,
+  restaurantStockHandler, restaurantStockLocationsHandler, restaurantStockMovementsHandler,
   adjustRestaurantStockHandler, removeRestaurantStockHandler, consumeRestaurantPortionHandler,
   getRestaurantPurchasesHandler, getRestaurantPurchaseByIdHandler,
   listRestaurantPurchasesHandler, restaurantPurchaseDetailHandler, createRestaurantPurchaseHandler,
