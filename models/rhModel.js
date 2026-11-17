@@ -6,6 +6,25 @@ const employeeFields = ['user_id', 'matricule', 'first_name', 'last_name', 'phot
 const employees = createCrudModel({ table: 'rh_employees', fields: employeeFields, sortable: ['id', 'matricule', 'first_name', 'last_name', 'department', 'position', 'joined_at', 'contract_type', 'salary', 'status', 'created_at'] });
 const evaluations = createCrudModel({ table: 'rh_evaluations', fields: ['employee_id', 'period', 'reviewer_id', 'score', 'comment', 'evaluation_date', 'status'], sortable: ['id', 'employee_id', 'period', 'score', 'evaluation_date', 'status', 'created_at'] });
 
+let departmentBudgetSchemaReady;
+async function ensureDepartmentBudgetSchema() {
+  if (!departmentBudgetSchemaReady) {
+    departmentBudgetSchemaReady = pool.query(`
+      CREATE TABLE IF NOT EXISTS rh_department_budgets (
+        department VARCHAR(120) NOT NULL,
+        monthly_budget DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        updated_by BIGINT UNSIGNED DEFAULT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (department)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `).catch((error) => {
+      departmentBudgetSchemaReady = undefined;
+      throw error;
+    });
+  }
+  await departmentBudgetSchemaReady;
+}
+
 // --- Lien avec les comptes utilisateurs (gestion d'accès) ---------------------
 
 async function findEmployeeByUserId(userId) {
@@ -431,6 +450,7 @@ async function listEvaluations({ from, to, employeeId, status, page = 1, limit =
 // couverts. Le réalisé est la masse salariale brute (base + HS + primes + pourboires + indemnités)
 // des lignes de paie des mois couverts, rattachées au département actuel de l'employé.
 async function listDepartmentBudgets({ from, to, departments }) {
+  await ensureDepartmentBudgetSchema();
   const start = monthBounds(from).start;
   const end = monthBounds(to).end;
   if (end < start) throw new Error('La date de fin doit être postérieure à la date de début');
@@ -439,7 +459,9 @@ async function listDepartmentBudgets({ from, to, departments }) {
   // Le bouton « Payer » n'existe plus : une paie validée est considérée comme payée.
   const [actuals] = await pool.query(`SELECT e.department, SUM(p.base_salary + p.overtime_amount + p.bonuses + p.pourboire + p.allowances) gross, SUM(p.net_amount) net,
     SUM(CASE WHEN p.status = 'BROUILLON' THEN p.net_amount ELSE 0 END) to_pay, SUM(CASE WHEN p.status IN ('VALIDE', 'PAYE') THEN p.net_amount ELSE 0 END) paid
-    FROM rh_payroll p JOIN rh_employees e ON e.id = p.employee_id WHERE p.period_month BETWEEN ? AND ? GROUP BY e.department`, [start, end]);
+    FROM rh_payroll p JOIN rh_employees e ON e.id = p.employee_id
+    WHERE p.period_month BETWEEN DATE_FORMAT(?, '%Y-%m') AND DATE_FORMAT(?, '%Y-%m')
+    GROUP BY e.department`, [start, end]);
   const [headcounts] = await pool.query(`SELECT department, COUNT(*) total FROM rh_employees WHERE ${IN_WORKFORCE_SQL()} GROUP BY department`);
   const byDept = (rows, key) => Object.fromEntries(rows.map((r) => [r.department, r[key]]));
   const budgetMap = byDept(budgets, 'monthly_budget'); const grossMap = byDept(actuals, 'gross'); const netMap = byDept(actuals, 'net'); const toPayMap = byDept(actuals, 'to_pay'); const paidMap = byDept(actuals, 'paid'); const headMap = byDept(headcounts, 'total');
@@ -453,6 +475,7 @@ async function listDepartmentBudgets({ from, to, departments }) {
 }
 
 async function setDepartmentBudget(department, monthlyBudget, userId) {
+  await ensureDepartmentBudgetSchema();
   await pool.query('INSERT INTO rh_department_budgets (department, monthly_budget, updated_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE monthly_budget = VALUES(monthly_budget), updated_by = VALUES(updated_by)', [department, monthlyBudget, userId || null]);
   const [[row]] = await pool.query('SELECT department, monthly_budget FROM rh_department_budgets WHERE department=?', [department]);
   return { department: row.department, monthly_budget: Number(row.monthly_budget) };

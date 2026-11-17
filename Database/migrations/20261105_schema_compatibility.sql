@@ -365,6 +365,14 @@ CREATE TABLE IF NOT EXISTS rh_payroll (
   UNIQUE KEY uq_rh_payroll_employee_period (employee_id, period)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS rh_department_budgets (
+  department VARCHAR(120) NOT NULL,
+  monthly_budget DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  updated_by BIGINT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (department)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET @rh_employee_face_consent := IF(
   (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rh_employees' AND COLUMN_NAME = 'face_consent_at') = 0,
   'ALTER TABLE rh_employees ADD COLUMN face_consent_at DATETIME DEFAULT NULL',
