@@ -1,5 +1,6 @@
 const { pool, withTransaction } = require('../config/db');
 const { createOrder, ensureBarTransactionsSchema } = require('./barTransaction.model');
+const { ensureBarProductSchema } = require('./barProduct.model');
 const ApiError = require('../utils/ApiError');
 
 async function findOrCreateClient(name, connection) {
@@ -12,6 +13,19 @@ async function findOrCreateClient(name, connection) {
 }
 
 async function ensureBarOrderTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bar_clients (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      nom VARCHAR(150) NOT NULL,
+      prenom VARCHAR(100) DEFAULT NULL,
+      telephone VARCHAR(50) DEFAULT NULL,
+      email VARCHAR(150) DEFAULT NULL,
+      adresse TEXT DEFAULT NULL,
+      statut VARCHAR(30) NOT NULL DEFAULT 'ACTIF',
+      PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bar_orders (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -153,6 +167,7 @@ async function listBarHistory() {
 }
 
 async function createBarOrder({ clientName, tableId, nombrePersonnes = 1, moyenPaiement = 'ESPECES', observation = '', items, createdBy = null, hotelReservationId = null, roomId = null, roomGuestName = null, roomAccountPaid = false }) {
+  await ensureBarProductSchema();
   await ensureBarOrderTables();
   await ensureBarTransactionsSchema();
 

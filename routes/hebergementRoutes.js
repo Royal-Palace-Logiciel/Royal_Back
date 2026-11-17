@@ -38,6 +38,7 @@ router.post('/reservations/:id/validate-discount', ctrl.validateReservationDisco
 router.post('/reservations/:id/payments', ctrl.createReservationPaymentHandler); // POST encaissement partiel/multi-modes
 router.get('/reservations/:id/payments', ctrl.reservationPaymentsHandler);   // GET /api/hebergement/reservations/:id/payments
 router.get('/reservations/:reservationId/invoices', ctrl.hotelInvoiceHandler);
+router.put('/reservations/:reservationId/invoices/:invoiceId', ctrl.updateHotelInvoiceHandler);
 router.get('/reservations/stats', ctrl.reservationStatsHandler);         // GET /api/hebergement/reservations/stats
 router.get('/reservations/history', ctrl.getHotelHistoryHandler);          // GET /api/hebergement/reservations/history?user_id=&start_date=&end_date=&statut=
 router.get('/reservations/reports/collections', ctrl.reservationCollectionReportHandler);

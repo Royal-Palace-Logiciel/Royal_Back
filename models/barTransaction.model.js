@@ -7,12 +7,48 @@ let schemaReady;
 async function ensureBarTransactionsSchema() {
   if (!schemaReady) {
     schemaReady = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS bar_transactions (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          session_id BIGINT UNSIGNED DEFAULT NULL,
+          client_id BIGINT UNSIGNED DEFAULT NULL,
+          table_id BIGINT UNSIGNED DEFAULT NULL,
+          order_id BIGINT UNSIGNED DEFAULT NULL,
+          product_id BIGINT UNSIGNED DEFAULT NULL,
+          quantite DECIMAL(12,2) NOT NULL DEFAULT 1,
+          prix_unitaire DECIMAL(14,2) NOT NULL DEFAULT 0,
+          statut VARCHAR(30) NOT NULL DEFAULT 'EN_ATTENTE',
+          type_transaction VARCHAR(40) NOT NULL DEFAULT 'ENTREE',
+          montant DECIMAL(14,2) NOT NULL DEFAULT 0,
+          moyen_paiement VARCHAR(30) NOT NULL DEFAULT 'ESPECES',
+          reference VARCHAR(150) DEFAULT NULL,
+          created_by BIGINT UNSIGNED DEFAULT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          KEY idx_bar_transactions_session_id (session_id),
+          KEY idx_bar_transactions_product_id (product_id),
+          KEY idx_bar_transactions_order_id (order_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
       const [columns] = await pool.query('SHOW COLUMNS FROM bar_transactions');
       const existing = new Set(columns.map((column) => column.Field));
-      if (!existing.has('client_id')) await pool.query('ALTER TABLE bar_transactions ADD COLUMN client_id BIGINT UNSIGNED NULL AFTER session_id');
-      if (!existing.has('table_id')) await pool.query('ALTER TABLE bar_transactions ADD COLUMN table_id BIGINT UNSIGNED NULL AFTER client_id');
-      if (!existing.has('statut')) await pool.query("ALTER TABLE bar_transactions ADD COLUMN statut ENUM('EN_ATTENTE','EN_COURS','SERVIE','PAYEE','ANNULEE') NOT NULL DEFAULT 'EN_ATTENTE' AFTER prix_unitaire");
-      if (!existing.has('order_id')) await pool.query('ALTER TABLE bar_transactions ADD COLUMN order_id BIGINT UNSIGNED NULL AFTER table_id');
+      const requiredColumns = {
+        session_id: 'BIGINT UNSIGNED DEFAULT NULL',
+        client_id: 'BIGINT UNSIGNED DEFAULT NULL',
+        table_id: 'BIGINT UNSIGNED DEFAULT NULL',
+        order_id: 'BIGINT UNSIGNED DEFAULT NULL',
+        product_id: 'BIGINT UNSIGNED DEFAULT NULL',
+        quantite: 'DECIMAL(12,2) NOT NULL DEFAULT 1',
+        prix_unitaire: 'DECIMAL(14,2) NOT NULL DEFAULT 0',
+        statut: "VARCHAR(30) NOT NULL DEFAULT 'EN_ATTENTE'",
+        created_at: 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+      };
+      for (const [column, definition] of Object.entries(requiredColumns)) {
+        if (!existing.has(column)) {
+          await pool.query(`ALTER TABLE bar_transactions ADD COLUMN \`${column}\` ${definition}`);
+        }
+      }
     })().catch((error) => {
       schemaReady = undefined;
       throw error;
