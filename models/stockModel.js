@@ -53,6 +53,14 @@ async function ensureStockSchema() {
           await pool.query(`ALTER TABLE stock_movements ADD COLUMN \`${column}\` ${definition}`);
         }
       }
+
+      await pool.query(
+        `INSERT INTO stock_locations (nom)
+         SELECT 'Restaurant'
+         WHERE NOT EXISTS (
+           SELECT 1 FROM stock_locations WHERE LOWER(nom) LIKE '%restaurant%'
+         )`
+      );
     })().catch((error) => {
       schemaReady = undefined;
       throw error;
