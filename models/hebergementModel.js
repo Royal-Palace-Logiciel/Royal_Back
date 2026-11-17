@@ -2,6 +2,7 @@
 const { pool, withTransaction } = require('../config/db');
 const { createCrudModel } = require('./crudFactory');
 const stockModel = require('./stockModel');
+const ApiError = require('../utils/ApiError');
 const crypto = require('crypto');
 const { validateHotelPayment, getHotelPaymentStatus, roundMoney, isIdempotentReplay } = require('../utils/hotelPaymentRules');
 
@@ -228,6 +229,7 @@ Reservations.update = async function (id, data, modifiedBy = null) {
   }
   
   await reservationsCrudUpdate.call(this, id, updateData);
+  if (changesAmount) await ensureEditableProformaInvoice(id, { syncTotal: true });
   return findReservationWithDetails(id);
 };
 Reservations.remove = async function (id) {
@@ -665,7 +667,56 @@ async function createReservationPayment(reservationId, options = {}) {
   return { ...result, reservation: await findReservationWithDetails(reservationId) };
 }
 
+async function ensureEditableProformaInvoice(reservationId, { syncTotal = false } = {}) {
+  return withTransaction(async (conn) => {
+    const [[reservation]] = await conn.query(
+      'SELECT id, montant_total FROM reservations WHERE id = ? FOR UPDATE',
+      [reservationId]
+    );
+    if (!reservation) return null;
+
+    const [invoiceRows] = await conn.query(
+      "SELECT * FROM hotel_invoices WHERE reservation_id = ? AND invoice_type = 'PROFORMA' LIMIT 1 FOR UPDATE",
+      [reservationId]
+    );
+    let invoice = invoiceRows[0];
+    if (!invoice) {
+      const [[finalInvoice]] = await conn.query(
+        "SELECT id FROM hotel_invoices WHERE reservation_id = ? AND invoice_type = 'FINALE' LIMIT 1",
+        [reservationId]
+      );
+      if (finalInvoice) return null;
+      const [inserted] = await conn.query(
+        `INSERT INTO hotel_invoices (reservation_id, invoice_type, numero, montant_total, statut, editable)
+         VALUES (?, 'PROFORMA', ?, ?, 'EMISE', 1)`,
+        [reservationId, `PF-${String(reservationId).padStart(6, '0')}`, reservation.montant_total]
+      );
+      invoice = { id: inserted.insertId, editable: 1 };
+      await conn.query(
+        `INSERT INTO hotel_invoice_items (invoice_id, description, quantite, prix_unitaire, montant)
+         VALUES (?, 'Hébergement', 1, ?, ?)`,
+        [invoice.id, reservation.montant_total, reservation.montant_total]
+      );
+    } else if (syncTotal && Number(invoice.editable)) {
+      await conn.query(
+        'UPDATE hotel_invoices SET montant_total = ?, updated_at = NOW() WHERE id = ?',
+        [reservation.montant_total, invoice.id]
+      );
+      await conn.query('DELETE FROM hotel_invoice_items WHERE invoice_id = ?', [invoice.id]);
+      await conn.query(
+        `INSERT INTO hotel_invoice_items (invoice_id, description, quantite, prix_unitaire, montant)
+         VALUES (?, 'Hébergement', 1, ?, ?)`,
+        [invoice.id, reservation.montant_total, reservation.montant_total]
+      );
+    }
+    return invoice;
+  });
+}
+
 async function getHotelInvoice(reservationId, invoiceType = null) {
+  if (!invoiceType || invoiceType === 'PROFORMA') {
+    await ensureEditableProformaInvoice(reservationId);
+  }
   const params = [reservationId];
   let where = 'reservation_id = ?';
   if (invoiceType) {
@@ -678,6 +729,46 @@ async function getHotelInvoice(reservationId, invoiceType = null) {
     invoice.items = items;
   }
   return invoiceType ? invoices[0] || null : invoices;
+}
+
+async function updateHotelInvoice(reservationId, invoiceId, items) {
+  const normalizedItems = items.map((item) => {
+    const description = String(item.description || '').trim();
+    const quantite = Number(item.quantite);
+    const prixUnitaire = roundMoney(Number(item.prix_unitaire));
+    if (!description || !Number.isFinite(quantite) || quantite <= 0 || !Number.isFinite(prixUnitaire) || prixUnitaire < 0) {
+      throw ApiError.badRequest('Chaque ligne doit avoir une description, une quantité positive et un prix valide.');
+    }
+    const montant = roundMoney(quantite * prixUnitaire);
+    return { description, quantite, prixUnitaire, montant };
+  });
+  if (!normalizedItems.length) throw ApiError.badRequest('La facture doit contenir au moins une ligne.');
+  const total = roundMoney(normalizedItems.reduce((sum, item) => sum + item.montant, 0));
+
+  await withTransaction(async (conn) => {
+    const [[reservation]] = await conn.query('SELECT id FROM reservations WHERE id = ? FOR UPDATE', [reservationId]);
+    if (!reservation) throw ApiError.notFound('Réservation introuvable.');
+    const [[invoice]] = await conn.query(
+      'SELECT * FROM hotel_invoices WHERE id = ? AND reservation_id = ? FOR UPDATE',
+      [invoiceId, reservationId]
+    );
+    if (!invoice) throw ApiError.notFound('Facture introuvable.');
+    if (invoice.invoice_type !== 'PROFORMA' || Number(invoice.editable) !== 1) {
+      throw ApiError.conflict('Cette facture n’est plus modifiable.');
+    }
+
+    await conn.query('UPDATE hotel_invoices SET montant_total = ?, updated_at = NOW() WHERE id = ?', [total, invoiceId]);
+    await conn.query('DELETE FROM hotel_invoice_items WHERE invoice_id = ?', [invoiceId]);
+    for (const item of normalizedItems) {
+      await conn.query(
+        `INSERT INTO hotel_invoice_items (invoice_id, description, quantite, prix_unitaire, montant)
+         VALUES (?, ?, ?, ?, ?)`,
+        [invoiceId, item.description, item.quantite, item.prixUnitaire, item.montant]
+      );
+    }
+    await conn.query('UPDATE reservations SET montant_total = ? WHERE id = ?', [total, reservationId]);
+  });
+  return getHotelInvoice(reservationId, 'PROFORMA');
 }
 
 async function finalizeHotelInvoice(conn, reservation) {
@@ -1525,7 +1616,7 @@ module.exports = {
   RoomStatusHistory, Reservations, ReservationGuests, Stays, HousekeepingTasks, MaintenanceWorkers,
   LostAndFound, MinibarConsumptions,
   isRoomAvailable, createReservationWithGuests, validateReservationDiscount, recordReservationPayment,
-  createReservationPayment, applyReservationPaymentTransaction, listReservationPayments, getReservationCollectionReport, getHotelInvoice, checkIn, checkOut, availableRooms,
+  createReservationPayment, applyReservationPaymentTransaction, listReservationPayments, getReservationCollectionReport, getHotelInvoice, updateHotelInvoice, checkIn, checkOut, availableRooms,
   updateMaintenanceStatus, getMaintenanceStats, getReservationStats,
   updateRoomStatus, getEquipmentByCode, getEquipmentCategories, getEquipmentStats,
   updateRoomEquipmentStatus, getRoomStats, saveMaintenance, saveHousekeepingTask,

@@ -586,6 +586,15 @@ async function hotelInvoiceHandler(req, res) {
   return ok(res, invoice);
 }
 
+async function updateHotelInvoiceHandler(req, res) {
+  const items = req.body?.items;
+  if (!Array.isArray(items) || items.length === 0) {
+    throw ApiError.badRequest('La facture doit contenir au moins une ligne.');
+  }
+  const invoice = await heb.updateHotelInvoice(req.params.reservationId, req.params.invoiceId, items);
+  return ok(res, invoice);
+}
+
 async function updateMaintenanceStatusHandler(req, res) {
   const { statut, materials_used } = req.body;
   if (!statut) throw ApiError.badRequest('statut est requis');
@@ -1064,7 +1073,7 @@ module.exports = {
   roomTypesCrud, roomsCrud, equipmentsCrud, roomEquipmentsCrud, roomMaintenanceCrud, maintenanceWorkersCrud,
   roomMinibarCrud, roomStatusHistoryCrud, reservationsCrud, reservationGuestsCrud,
   staysCrud, housekeepingCrud, lostAndFoundCrud, minibarConsumptionsCrud,
-  availabilityHandler, availableRoomsHandler, updateRoomHandler, updateRoomTypeHandler, createReservationHandler, validateReservationDiscountHandler, reservationPaymentsHandler, createReservationPaymentHandler, createMaintenanceHandler, checkInHandler, checkOutHandler, hotelInvoiceHandler,
+  availabilityHandler, availableRoomsHandler, updateRoomHandler, updateRoomTypeHandler, createReservationHandler, validateReservationDiscountHandler, reservationPaymentsHandler, createReservationPaymentHandler, createMaintenanceHandler, checkInHandler, checkOutHandler, hotelInvoiceHandler, updateHotelInvoiceHandler,
   updateMaintenanceStatusHandler, maintenanceStatsHandler, reservationStatsHandler,
   reservationCollectionReportHandler, saveReservationCollectionReportHandler,
   updateRoomStatusHandler, equipmentByCodeHandler, equipmentCategoriesHandler, createEquipmentHandler, updateEquipmentHandler,
