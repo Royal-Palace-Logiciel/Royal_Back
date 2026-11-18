@@ -76,7 +76,7 @@ async function findReservationWithDetails(id) {
 
   let query, params;
   if (hasTracking) {
-    query = `SELECT r.*, c.nom AS client_nom, c.prenom AS client_prenom, room.numero AS room_numero,
+    query = `SELECT r.*, c.nom AS client_nom, c.prenom AS client_prenom, c.type_client AS client_type_client, room.numero AS room_numero,
             creator.nom AS created_by_nom, creator.prenom AS created_by_prenom,
             modifier.nom AS modified_by_nom, modifier.prenom AS modified_by_prenom,
             (COALESCE(r.montant_paye, 0) >= COALESCE(r.montant_total, 0)) AS est_payee,
@@ -97,7 +97,7 @@ async function findReservationWithDetails(id) {
      WHERE r.id = ? LIMIT 1`;
     params = [id];
   } else {
-    query = `SELECT r.*, c.nom AS client_nom, c.prenom AS client_prenom, room.numero AS room_numero,
+    query = `SELECT r.*, c.nom AS client_nom, c.prenom AS client_prenom, c.type_client AS client_type_client, room.numero AS room_numero,
             (COALESCE(r.montant_paye, 0) >= COALESCE(r.montant_total, 0)) AS est_payee,
             CASE
               WHEN GREATEST(COALESCE(r.montant_total, 0) - COALESCE(r.montant_paye, 0), 0) <= 0
@@ -116,7 +116,16 @@ async function findReservationWithDetails(id) {
   }
 
   const [rows] = await pool.query(query, params);
-  return rows[0] || null;
+  const reservation = rows[0] || null;
+  if (!reservation) return null;
+
+  const [occupants] = await pool.query(
+    `SELECT id, room_id, nom, prenom, telephone, email
+     FROM hotel_occupants WHERE reservation_id = ? ORDER BY id`,
+    [id]
+  );
+  reservation.occupants = occupants;
+  return reservation;
 }
 
 Reservations.findAll = async function (options) {
